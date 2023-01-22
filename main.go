@@ -21,24 +21,51 @@ func main() {
 	defer sourceDb.Close()
 
 	// Connect to MSSQL destination database
-	destDb, err := sql.Open("mssql", "server=localhost;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
+	destDb, err := sql.Open("mssql", "server=localhost;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertifier=true;encrypt=disable;connection timeout=3000;")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer destDb.Close()
 
-	start := end.Add(-time.Hour)
+	// Prepare destination insert statement
+	destInsert, err := destDb.Prepare("INSERT INTO runtime.dbo.history (tag_id, [date], [value]) VALUES (?, ?, ?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer destInsert.Close()
+
+	// Prepare destination tag select statement
+	destSelectTag, err := destDb.Prepare("SELECT id FROM tagname WHERE tag=?")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer destSelectTag.Close()
+
+	// Prepare destination tag insert statement
+	destInsertTag, err := destDb.Prepare("INSERT INTO tagname (tag) VALUES (?) SELECT SCOPE_IDENTITY()")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer destInsertTag.Close()
+
+	start := end.Add(-time.Minute)
 	for i := 0; i < 1314000; i++ {
 		// Copy data from MSSQL source to MSSQL destination for each hour
 		startStr := start.Format("2006-01-02 15:04:05")
 		endStr := end.Format("2006-01-02 15:04:05")
 		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
+
 		q := fmt.Sprintf("SELECT h.TagName, h.[DateTime], h.Value FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
 		rows, err := sourceDb.Query(q)
 		if err != nil {
 			log.Println(err.Error())
 		}
 		defer rows.Close()
+
+		// Create slices to store the data
+		tagIDs := []int{}
+		dates := []time.Time{}
+		values := []float32{}
 
 		for rows.Next() {
 			var tag string
@@ -49,42 +76,32 @@ func main() {
 			}
 
 			// Check if tag already exists in tagname table
-			var tagCount int
-			err = destDb.QueryRow("SELECT COUNT(*) FROM tagname WHERE tag=?", tag).Scan(&tagCount)
-			if err != nil {
+			var tagID int
+			err = destSelectTag.QueryRow(tag).Scan(&tagID)
+			if err == sql.ErrNoRows {
+				// Tag doesn't exist, insert it into tagname table
+				destInsertTag.QueryRow(tag).Scan(&tagID)
+				if err != nil {
+					log.Println(err.Error())
+				}
+			} else if err != nil {
 				log.Println(err.Error())
 			}
-			var tagID int
-			if tagCount == 0 {
-				// Tag doesn't exist, insert it into tagname table
-				destDb.QueryRow("INSERT INTO tagname (tag) VALUES (?) SELECT SCOPE_IDENTITY()", tag).Scan(&tagID)
-				if err != nil {
-					log.Println(err.Error())
-				}
-			} else {
-				// Get the ID of the existing tag
-				err = destDb.QueryRow("SELECT id FROM tagname WHERE tag=?", tag).Scan(&tagID)
-				if err != nil {
-					log.Println(err.Error())
-				}
-			}
 
-			// Insert data into MSSQL destination database with the tag ID
-			// _, err = destDb.Exec("INSERT INTO history (Tag_ID, [Date], Value) VALUES (@tagID, @dt, @value)", sql.Named("tagId", tagID), sql.Named("dt", date), sql.Named("value", value))
-			_, _ = destDb.Exec("INSERT INTO runtime.dbo.history (tag_id, [date], [value]) VALUES (?, ?, ?)", tagID, date, value)
-			// st, err := destDb.Prepare("INSERT INTO runtime.dbo.history (tag_id, [date], [value]) values (@p1, @p2, @p3)")
-			// if err != nil {
-			// 	log.Println(err.Error())
-			// }
-			// _, err = st.Exec(tagID, date, value)
-			// if err != nil {
-			// 	log.Println(err.Error())
-			// }
+			// Append the data to the slices
+			tagIDs = append(tagIDs, tagID)
+			dates = append(dates, date)
+			values = append(values, value)
+		}
+
+		// Use bulk insert operation to insert data into destination
+		for i := 0; i < len(tagIDs); i++ {
+			_, _ = destInsert.Exec(tagIDs[i], dates[i], values[i])
 			// if err != nil {
 			// 	log.Println(err.Error())
 			// }
 		}
-		start = start.Add(-time.Hour)
-		end = end.Add(-time.Hour)
+		start = start.Add(-time.Minute)
+		end = end.Add(-time.Minute)
 	}
 }
