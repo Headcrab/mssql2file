@@ -1,5 +1,3 @@
-/* copy data from MSSQL to MongoDB */
-
 package main
 
 import (
@@ -17,10 +15,10 @@ import (
 
 func main() {
 	// Set end time to current 20.01.2023 18:00:00
-	end, _ := time.Parse("2006-01-02 15:04:05", "2022-12-31 12:00:00")
+	end, _ := time.Parse("2006-01-02 15:04:05", "2022-12-16 00:02:00")
 
 	// Connect to MSSQL
-	mssqlDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=300;")
+	mssqlDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -39,11 +37,12 @@ func main() {
 
 	historyColl := mongoClient.Database("runtime").Collection("history")
 
-	start := end.Add(-time.Hour)
-	for i := 0; i < 8760; i++ {
+	start := end.Add(-time.Hour * 24)
+	for i := 0; i < 365; i++ {
 		// Copy data from MSSQL to MongoDB for each hour
 		startStr := start.Format("2006-01-02 15:04:05")
 		endStr := end.Format("2006-01-02 15:04:05")
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
 		q := fmt.Sprintf("SELECT h.TagName, h.[DateTime], h.Value FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
 		rows, err := mssqlDb.Query(q)
 		if err != nil {
@@ -51,6 +50,7 @@ func main() {
 		}
 		defer rows.Close()
 
+		var docs []interface{}
 		for rows.Next() {
 			var tag string
 			var date time.Time
@@ -58,18 +58,16 @@ func main() {
 			if err := rows.Scan(&tag, &date, &value); err != nil {
 				log.Println(err.Error())
 			}
-			var existingDoc bson.M
-			err := historyColl.FindOne(context.TODO(), bson.M{"tag": tag, "date": date}).Decode(&existingDoc)
-			if err == nil {
-				// Document with same tag and date already exists, skip inserting
-				continue
-			}
-			_, err = historyColl.InsertOne(context.TODO(), bson.M{"tag": tag, "date": date, "value": value})
-			if err != nil {
-				log.Println(err.Error())
-			}
+
+			docs = append(docs, bson.M{"tag": tag, "date": date, "value": value})
 		}
-		start, end = start.Add(-time.Hour), end.Add(-time.Hour)
+
+		// Insert multiple documents at once
+		_, err = historyColl.InsertMany(context.TODO(), docs)
+		if err != nil {
+			log.Println(err.Error())
+		}
+		start, end = start.Add(-time.Hour*24), end.Add(-time.Hour*24)
 	}
 	fmt.Println("Data from MSSQL table 'history' successfully copied to MongoDB collection 'history'.")
 }
