@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// Set end time to current 20.01.2023 18:00:00
-	end, _ := time.Parse("2006-01-02 15:04:05", "2023-01-22 19:00:00")
+	end, _ := time.Parse("2006-01-02 15:04:05", "2023-01-23 12:00:00")
 
 	// Connect to MSSQL source database
 	sourceDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
@@ -34,13 +34,6 @@ func main() {
 	}
 	defer destInsert.Close()
 
-	// Prepare destination tag select statement
-	destSelectTag, err := destDb.Prepare("SELECT id FROM tagname WHERE tag=?")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer destSelectTag.Close()
-
 	// Prepare destination tag insert statement
 	destInsertTag, err := destDb.Prepare("INSERT INTO tagname (tag) VALUES (?) SELECT SCOPE_IDENTITY()")
 	if err != nil {
@@ -48,8 +41,12 @@ func main() {
 	}
 	defer destInsertTag.Close()
 
-	start := end.Add(-time.Minute)
-	for i := 0; i < 1314000; i++ {
+	// Create a map to cache the tag names and their corresponding IDs
+	tagCache := make(map[string]int)
+
+	period := -time.Minute * 5
+	start := end.Add(period)
+	for i := 0; i < 8760; i++ {
 		// Copy data from MSSQL source to MSSQL destination for each hour
 		startStr := start.Format("2006-01-02 15:04:05")
 		endStr := end.Format("2006-01-02 15:04:05")
@@ -62,11 +59,6 @@ func main() {
 		}
 		defer rows.Close()
 
-		// Create slices to store the data
-		tagIDs := []int{}
-		dates := []time.Time{}
-		values := []float32{}
-
 		for rows.Next() {
 			var tag string
 			var date time.Time
@@ -75,33 +67,26 @@ func main() {
 				log.Println(err.Error())
 			}
 
-			// Check if tag already exists in tagname table
+			// Check if tag is already in cache
 			var tagID int
-			err = destSelectTag.QueryRow(tag).Scan(&tagID)
-			if err == sql.ErrNoRows {
-				// Tag doesn't exist, insert it into tagname table
+			var ok bool
+			if tagID, ok = tagCache[tag]; !ok {
+				// Tag not in cache, check the destination database
 				destInsertTag.QueryRow(tag).Scan(&tagID)
-				if err != nil {
-					log.Println(err.Error())
-				}
-			} else if err != nil {
-				log.Println(err.Error())
+				// if err != nil {
+				// 	log.Println(err.Error())
+				// }
+				// Add the new tag to the cache
+				tagCache[tag] = tagID
 			}
 
-			// Append the data to the slices
-			tagIDs = append(tagIDs, tagID)
-			dates = append(dates, date)
-			values = append(values, value)
-		}
-
-		// Use bulk insert operation to insert data into destination
-		for i := 0; i < len(tagIDs); i++ {
-			_, _ = destInsert.Exec(tagIDs[i], dates[i], values[i])
+			// Insert data into destination with the tag ID
+			destInsert.Exec(tagID, date, value)
 			// if err != nil {
 			// 	log.Println(err.Error())
 			// }
 		}
-		start = start.Add(-time.Minute)
-		end = end.Add(-time.Minute)
+		start = start.Add(period)
+		end = end.Add(period)
 	}
 }
