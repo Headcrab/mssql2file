@@ -14,7 +14,7 @@ import (
 
 func main() {
 	// Set end time to current 2023-01-23 12:00:00
-	start, _ := time.Parse("2006-01-02 15:04:05", "2022-01-21 11:00:00")
+	start, _ := time.Parse("2006-01-02 15:04:05", "2022-12-31 20:00:00")
 
 	// Connect to MSSQL source database
 	sourceDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
@@ -27,7 +27,7 @@ func main() {
 	destDb, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"localhost:9000"},
 		Auth: clickhouse.Auth{
-			Database: "default",
+			Database: "runtime",
 			Username: "admin",
 			Password: "password123",
 		},
@@ -42,10 +42,9 @@ func main() {
 
 	// Create a buffer to store data before inserting into ClickHouse
 	var buffer []string
-
-	period := time.Hour
+	period := time.Hour * 24
 	end := start.Add(period)
-	for i := 0; i < 600; i++ {
+	for i := 0; i < 27; i++ {
 		// Copy data from MSSQL source to buffer for each hour
 		startStr := start.Format("2006-01-02 15:04:05")
 		endStr := end.Format("2006-01-02 15:04:05")
@@ -69,7 +68,7 @@ func main() {
 			// Append data to buffer
 			buffer = append(buffer, fmt.Sprintf("('%s', '%s', %v)", tag, date.Format("2006-01-02 15:04:05.000"), value))
 			// Check if buffer has reached a certain size, then insert data into destination ClickHouse
-			if len(buffer) >= 1000 {
+			if len(buffer) >= 1000000 {
 				err = destDb.Exec(ctx, "INSERT INTO history (tag_name, date, value) VALUES "+strings.Join(buffer, ","))
 				if err != nil {
 					log.Println(err.Error())
