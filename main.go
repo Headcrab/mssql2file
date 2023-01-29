@@ -2,21 +2,30 @@ package main
 
 import (
 	// "context"
+
 	"compress/gzip"
 	"database/sql"
-	"encoding/gob"
+
+	// "encoding"
+	// "encoding/gob"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	_ "github.com/denisenkom/go-mssqldb"
 )
 
+type Time time.Time
+
+func (t Time) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("\"%s\"", time.Time(t).Format("2006-01-02 15:04:05.000"))), nil
+}
+
 func main() {
 	// Set end time to current 2023-01-23 12:00:00
-	start, _ := time.Parse("2006-01-02 15:04:05", "2023-01-05 20:00:00")
+	start, _ := time.Parse("2006-01-02 15:04:05", "2022-12-31 20:00:00")
 
 	// Connect to MSSQL source database
 	sourceDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
@@ -26,27 +35,28 @@ func main() {
 	defer sourceDb.Close()
 
 	// Connect to ClickHouse destination database
-	destDb, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
-		Auth: clickhouse.Auth{
-			Database: "runtime",
-			Username: "admin",
-			Password: "password123",
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer destDb.Close()
+	// destDb, err := clickhouse.Open(&clickhouse.Options{
+	// 	Addr: []string{"localhost:9000"},
+	// 	Auth: clickhouse.Auth{
+	// 		Database: "runtime",
+	// 		Username: "admin",
+	// 		Password: "password123",
+	// 	},
+	// })
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer destDb.Close()
 
 	// Set context
 	// ctx := context.Background()
 
 	// Create a buffer to store data before inserting into ClickHouse
 	// var buffer []string
-	period := time.Minute * 5
+	period := time.Hour * 1
+	// period := time.Minute * 5
 	end := start.Add(period)
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 24; i++ {
 		// Copy data from MSSQL source to buffer for each hour
 		startStr := start.Format("2006-01-02 15:04:05")
 		endStr := end.Format("2006-01-02 15:04:05")
@@ -59,19 +69,24 @@ func main() {
 		}
 		defer rows.Close()
 
-		file, err := os.Create("result_" + start.Format("2006_01_02_15_04_05") + ".bin")
+		file, err := os.Create("result_" + start.Format("060102_150405") + "_" + end.Format("060102_150405") + ".json.gz")
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer file.Close()
 
+		// compress the file
 		gzipWriter := gzip.NewWriter(file)
 		defer gzipWriter.Close()
 
-		encoder := gob.NewEncoder(gzipWriter)
+		// encoder := gob.NewEncoder(gzipWriter)
+		// // encoder := gob.NewEncoder(file)
+		// gob.Register(time.Time{})
 
-		// encoder := gob.NewEncoder(file)
-		gob.Register(time.Time{})
+		// create encoder for json
+		encoder := json.NewEncoder(gzipWriter)
+
+		// set json time format to "2006-01-02 15:04:05.000"
 
 		// create an empty slice to hold the row data
 		var data []map[string]interface{}
@@ -80,6 +95,9 @@ func main() {
 		for rows.Next() {
 			// create a map to hold the column data
 			columns := make(map[string]interface{})
+
+			// var dateTime Time
+			// columns["DateTime"] = &dateTime
 
 			// get the column names
 			columnNames, err := rows.Columns()
@@ -103,7 +121,11 @@ func main() {
 
 			// add the column data to the map
 			for i, columnName := range columnNames {
-				columns[columnName] = values[i]
+				if columnName == "DateTime" {
+					columns[columnName] = values[i].(time.Time).Format("2006-01-02 15:04:05.000")
+				} else {
+					columns[columnName] = values[i]
+				}
 			}
 
 			// add the map to the data slice

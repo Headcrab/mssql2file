@@ -29,4 +29,7 @@ go.work
 
 !cmd/*
 bin/logs/*
-result_*.bin
+result_*
+*.gz
+*.zip
+*.log
