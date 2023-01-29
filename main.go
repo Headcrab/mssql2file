@@ -1,14 +1,10 @@
 package main
 
 import (
-	// "context"
-
 	"compress/gzip"
 	"database/sql"
-
-	// "encoding"
-	// "encoding/gob"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -17,15 +13,43 @@ import (
 	_ "github.com/denisenkom/go-mssqldb"
 )
 
-type Time time.Time
-
-func (t Time) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"%s\"", time.Time(t).Format("2006-01-02 15:04:05.000"))), nil
-}
-
 func main() {
-	// Set end time to current 2023-01-23 12:00:00
-	start, _ := time.Parse("2006-01-02 15:04:05", "2022-12-31 20:00:00")
+	startStr := flag.String("start", "", "start datetime (format: '2006-01-02 15:04:05')")
+	periodStr := flag.String("period", "", "duration of a period (format: 1h, 5m, ...) (max: 24h)")
+	outputPath := flag.String("output", "\\", "directory to save output files (default: current directory)")
+	count := flag.Int("count", 1, "number of periods to process (default: 1)")
+	help := flag.Bool("help", false, "show help")
+
+	flag.Parse()
+
+	if *startStr == "" || *periodStr == "" || *outputPath == "" || *count < 1 {
+		fmt.Println("Usage of ", os.Args[0], ":")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if *help {
+		flag.Usage()
+		os.Exit(0)
+	}
+
+	start, err := time.Parse("2006-01-02 15:04:05", *startStr)
+	if err != nil {
+		log.Fatalf("invalid start datetime: %s", err)
+	}
+
+	period, err := time.ParseDuration(*periodStr)
+	if err != nil || period <= 0 || period > 24*time.Hour {
+		log.Fatalf("invalid period: %s", err)
+	}
+
+	// check output path and create if not exists
+	if _, err := os.Stat(*outputPath); os.IsNotExist(err) {
+		err := os.MkdirAll(*outputPath, 0755)
+		if err != nil {
+			log.Fatalf("invalid output path: %s", err)
+		}
+	}
 
 	// Connect to MSSQL source database
 	sourceDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
@@ -34,137 +58,83 @@ func main() {
 	}
 	defer sourceDb.Close()
 
-	// Connect to ClickHouse destination database
-	// destDb, err := clickhouse.Open(&clickhouse.Options{
-	// 	Addr: []string{"localhost:9000"},
-	// 	Auth: clickhouse.Auth{
-	// 		Database: "runtime",
-	// 		Username: "admin",
-	// 		Password: "password123",
-	// 	},
-	// })
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer destDb.Close()
-
-	// Set context
-	// ctx := context.Background()
-
-	// Create a buffer to store data before inserting into ClickHouse
-	// var buffer []string
-	period := time.Hour * 1
-	// period := time.Minute * 5
-	end := start.Add(period)
-	for i := 0; i < 24; i++ {
-		// Copy data from MSSQL source to buffer for each hour
-		startStr := start.Format("2006-01-02 15:04:05")
-		endStr := end.Format("2006-01-02 15:04:05")
-		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
-
-		q := fmt.Sprintf("SELECT h.TagName, h.[DateTime], h.Value FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
-		rows, err := sourceDb.Query(q)
-		if err != nil {
-			log.Println(err.Error())
-		}
-		defer rows.Close()
-
-		file, err := os.Create("result_" + start.Format("060102_150405") + "_" + end.Format("060102_150405") + ".json.gz")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer file.Close()
-
-		// compress the file
-		gzipWriter := gzip.NewWriter(file)
-		defer gzipWriter.Close()
-
-		// encoder := gob.NewEncoder(gzipWriter)
-		// // encoder := gob.NewEncoder(file)
-		// gob.Register(time.Time{})
-
-		// create encoder for json
-		encoder := json.NewEncoder(gzipWriter)
-
-		// set json time format to "2006-01-02 15:04:05.000"
-
-		// create an empty slice to hold the row data
-		var data []map[string]interface{}
-
-		// iterate through the rows
-		for rows.Next() {
-			// create a map to hold the column data
-			columns := make(map[string]interface{})
-
-			// var dateTime Time
-			// columns["DateTime"] = &dateTime
-
-			// get the column names
-			columnNames, err := rows.Columns()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			// create a slice to hold the column values
-			values := make([]interface{}, len(columnNames))
-
-			// create a slice of pointers to the column values
-			valuePtrs := make([]interface{}, len(columnNames))
-			for i := range values {
-				valuePtrs[i] = &values[i]
-			}
-
-			// scan the row data into the column values
-			if err := rows.Scan(valuePtrs...); err != nil {
-				log.Fatal(err)
-			}
-
-			// add the column data to the map
-			for i, columnName := range columnNames {
-				if columnName == "DateTime" {
-					columns[columnName] = values[i].(time.Time).Format("2006-01-02 15:04:05.000")
-				} else {
-					columns[columnName] = values[i]
-				}
-			}
-
-			// add the map to the data slice
-			data = append(data, columns)
-		}
-
-		//encode data to binary
-		if err := encoder.Encode(data); err != nil {
-			log.Fatal(err)
-		}
-
-		// for rows.Next() {
-		// 	var tag string
-		// 	var date time.Time
-		// 	var value float32
-		// 	if err := rows.Scan(&tag, &date, &value); err != nil {
-		// 		log.Println(err.Error())
-		// 	}
-
-		// 	// Append data to buffer
-		// 	buffer = append(buffer, fmt.Sprintf("('%s', '%s', %v)", tag, date.Format("2006-01-02 15:04:05.000"), value))
-		// 	// Check if buffer has reached a certain size, then insert data into destination ClickHouse
-		// 	if len(buffer) >= 100000 {
-		// 		err = destDb.Exec(ctx, "INSERT INTO history (tag_name, date, value) VALUES "+strings.Join(buffer, ","))
-		// 		if err != nil {
-		// 			log.Println(err.Error())
-		// 		}
-		// 		buffer = nil
-		// 	}
-		// }
+	for i := 0; i < *count; i++ {
+		writeOnePeriod(sourceDb, start, period, *outputPath)
 		start = start.Add(period)
-		end = end.Add(period)
+	}
+}
+
+type Time time.Time
+
+func (t Time) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("\"%s\"", time.Time(t).Format("2006-01-02 15:04:05.000"))), nil
+}
+
+func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, path string) {
+	end := start.Add(period)
+	startStr := start.Format("2006-01-02 15:04:05")
+	endStr := end.Format("2006-01-02 15:04:05")
+	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
+
+	q := fmt.Sprintf("SELECT h.TagName, h.[DateTime], h.Value FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
+	rows, err := sourceDb.Query(q)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	defer rows.Close()
+
+	file, err := os.Create("to_diode/result_" + start.Format("060102_150405") + "_" + end.Format("060102_150405") + ".json.gz")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	gzipWriter := gzip.NewWriter(file)
+	defer gzipWriter.Close()
+
+	encoder := json.NewEncoder(gzipWriter)
+
+	var data []map[string]interface{}
+
+	for rows.Next() {
+		data = writeRow(rows, data)
 	}
 
-	// Insert remaining data in buffer into destination ClickHouse
-	// if len(buffer) > 0 {
-	// 	destDb.Exec(ctx, "INSERT INTO history (tag_name, date, value) VALUES "+strings.Join(buffer, ","))
-	// 	if err != nil {
-	// 		log.Println(err.Error())
-	// 	}
-	// }
+	if err := encoder.Encode(data); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func writeRow(rows *sql.Rows, data []map[string]interface{}) []map[string]interface{} {
+
+	columns := make(map[string]interface{})
+	columns["DateTime"] = Time{}
+
+	columnNames, err := rows.Columns()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	values := make([]interface{}, len(columnNames))
+
+	valuePtrs := make([]interface{}, len(columnNames))
+	for i := range values {
+		valuePtrs[i] = &values[i]
+	}
+
+	if err := rows.Scan(valuePtrs...); err != nil {
+		// if err := rows.Scan(values...); err != nil {
+		log.Fatal(err)
+	}
+
+	for i, columnName := range columnNames {
+		if columnName == "DateTime" {
+			columns[columnName] = values[i].(time.Time).Format("2006-01-02 15:04:05.000")
+		} else {
+			columns[columnName] = values[i]
+		}
+	}
+
+	data = append(data, columns)
+	return data
 }
