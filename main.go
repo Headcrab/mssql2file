@@ -1,7 +1,8 @@
 // todo: add description
-// todo: add output format (json, csv, etc.)
-// todo: add output compression (gzip, bzip2, etc.)
-// todo: add output name format (template)
+// todo: add output format (json, csv, etc.) (default: json)
+// todo: add output compression (gzip, bzip2, etc.) (default: gzip)
+// todo: add output name template (template) (default: result_%period%_%start%_%end%.json.gz)
+// todo: add output name date format (default: 060102_150405)
 
 package main
 
