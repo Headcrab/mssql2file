@@ -1,3 +1,8 @@
+// todo: add description
+// todo: add output format (json, csv, etc.)
+// todo: add output compression (gzip, bzip2, etc.)
+// todo: add output name format (template)
+
 package main
 
 import (
@@ -16,7 +21,7 @@ import (
 func main() {
 	startStr := flag.String("start", "", "start datetime (format: '2006-01-02 15:04:05')")
 	periodStr := flag.String("period", "", "duration of a period (format: 1h, 5m, ...) (max: 24h)")
-	outputPath := flag.String("output", "\\", "directory to save output files (default: current directory)")
+	outputPath := flag.String("output", ".\\", "directory to save output files (default: current directory)")
 	count := flag.Int("count", 1, "number of periods to process (default: 1)")
 	help := flag.Bool("help", false, "show help")
 
@@ -51,6 +56,7 @@ func main() {
 		}
 	}
 
+	progStart := time.Now()
 	// Connect to MSSQL source database
 	sourceDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
 	if err != nil {
@@ -62,6 +68,7 @@ func main() {
 		writeOnePeriod(sourceDb, start, period, *outputPath)
 		start = start.Add(period)
 	}
+	fmt.Println("Total time: ", time.Since(progStart))
 }
 
 type Time time.Time
@@ -76,6 +83,16 @@ func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, pat
 	endStr := end.Format("2006-01-02 15:04:05")
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
 
+	// qCount := fmt.Sprintf("SELECT count(*) FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
+	// rowsCount := sourceDb.QueryRow(qCount)
+	// var count int
+	// err := rowsCount.Scan(&count)
+	// if err != nil {
+	// 	log.Println(err.Error())
+	// }
+	// fmt.Print(" %%: ", 0)
+	// currRecord := 0
+
 	q := fmt.Sprintf("SELECT h.TagName, h.[DateTime], h.Value FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
 	rows, err := sourceDb.Query(q)
 	if err != nil {
@@ -83,7 +100,7 @@ func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, pat
 	}
 	defer rows.Close()
 
-	file, err := os.Create("to_diode/result_" + start.Format("060102_150405") + "_" + end.Format("060102_150405") + ".json.gz")
+	file, err := os.Create(path + "/result_" + start.Format("060102_150405") + "_" + end.Format("060102_150405") + ".json.gz")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -98,6 +115,8 @@ func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, pat
 
 	for rows.Next() {
 		data = writeRow(rows, data)
+		// currRecord++
+		// fmt.Print("\b\b\b\b", "%d3%%", currRecord*100/count)
 	}
 
 	if err := encoder.Encode(data); err != nil {
@@ -106,35 +125,19 @@ func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, pat
 }
 
 func writeRow(rows *sql.Rows, data []map[string]interface{}) []map[string]interface{} {
+	var tagName string
+	var dateTime time.Time
+	var value float64
 
-	columns := make(map[string]interface{})
-	columns["DateTime"] = Time{}
-
-	columnNames, err := rows.Columns()
-	if err != nil {
-		log.Fatal(err)
+	if err := rows.Scan(&tagName, &dateTime, &value); err != nil {
+		log.Println(err.Error())
 	}
 
-	values := make([]interface{}, len(columnNames))
-
-	valuePtrs := make([]interface{}, len(columnNames))
-	for i := range values {
-		valuePtrs[i] = &values[i]
+	d := map[string]interface{}{
+		"TagName":  tagName,
+		"DateTime": Time(dateTime),
+		"Value":    value,
 	}
 
-	if err := rows.Scan(valuePtrs...); err != nil {
-		// if err := rows.Scan(values...); err != nil {
-		log.Fatal(err)
-	}
-
-	for i, columnName := range columnNames {
-		if columnName == "DateTime" {
-			columns[columnName] = values[i].(time.Time).Format("2006-01-02 15:04:05.000")
-		} else {
-			columns[columnName] = values[i]
-		}
-	}
-
-	data = append(data, columns)
-	return data
+	return append(data, d)
 }
