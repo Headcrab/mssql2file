@@ -3,7 +3,7 @@
 // todo: add output compression (gzip, bzip2, etc.) (default: gzip)
 // todo: add output name template (template) (default: result_%period%_%start%_%end%.json.gz)
 // todo: add output name date format (default: 060102_150405)
-
+// todo: add save/load last processed period
 package main
 
 import (
@@ -39,13 +39,17 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *startStr == "now" {
+		*startStr = time.Now().Format("2006-01-02 15:04:05")
+	}
+
 	start, err := time.Parse("2006-01-02 15:04:05", *startStr)
 	if err != nil {
 		log.Fatalf("invalid start datetime: %s", err)
 	}
 
 	period, err := time.ParseDuration(*periodStr)
-	if err != nil || period <= 0 || period > 24*time.Hour {
+	if err != nil || period > 24*time.Hour {
 		log.Fatalf("invalid period: %s", err)
 	}
 
@@ -80,6 +84,11 @@ func (t Time) MarshalJSON() ([]byte, error) {
 
 func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, path string) {
 	end := start.Add(period)
+	if period < 0 {
+		start = start.Add(period)
+		end = start.Add(-period)
+	}
+
 	startStr := start.Format("2006-01-02 15:04:05")
 	endStr := end.Format("2006-01-02 15:04:05")
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
