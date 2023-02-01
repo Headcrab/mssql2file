@@ -20,23 +20,65 @@ import (
 )
 
 func main() {
-	startStr := flag.String("start", "", "start datetime (format: '2006-01-02 15:04:05')")
-	periodStr := flag.String("period", "", "duration of a period (format: 1h, 5m, ...) (max: 24h)")
-	outputPath := flag.String("output", ".\\", "directory to save output files (default: current directory)")
-	count := flag.Int("count", 1, "number of periods to process (default: 1)")
+	startStr := flag.String("start", "", "start datetime (format: '2006-01-02 15:04:05' or 'now' or 'yesterday' or 'today' or 'last')")
+	periodStr := flag.String("period", "", "duration of a period (format: 1h, 5m, ...) (greater than 24h will be split to 24h periods)")
+	outputPath := flag.String("output", ".\\", "directory to save output files")
+	count := flag.Int("count", 1, "number of periods to process")
+	lastFile := flag.String("last", "mssql2file.last", "file to save/load last processed period")
 	help := flag.Bool("help", false, "show help")
 
 	flag.Parse()
 
-	if *startStr == "" || *periodStr == "" || *outputPath == "" || *count < 1 {
-		fmt.Println("Usage of ", os.Args[0], ":")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
-
 	if *help {
 		flag.Usage()
 		os.Exit(0)
+	}
+
+	if *startStr == "" {
+		fmt.Println("Usage of ", os.Args[0], ":")
+		flag.PrintDefaults()
+		fmt.Println("--- for any questions please contact: Novikov A.V. (better not) ---")
+		os.Exit(1)
+	}
+
+	last := false
+
+	switch *startStr {
+	case "now":
+		*startStr = time.Now().Format("2006-01-02 15:04:05")
+	case "yesterday":
+		*startStr = time.Now().AddDate(0, 0, -1).Format("2006-01-02 15:04:05")
+		*periodStr = "24h"
+	case "today":
+		*startStr = time.Now().Format("2006-01-02 15:04:05")
+		*periodStr = "24h"
+	case "last":
+		last = true
+		// read last processed period from file
+		file, err := os.Open(*lastFile)
+		if err != nil {
+			log.Fatalf("error opening last file: %s", err)
+		}
+		defer file.Close()
+		jsonParser := json.NewDecoder(file)
+		var lastDateStr map[string]string
+		if err = jsonParser.Decode(&lastDateStr); err != nil {
+			log.Fatalf("error parsing last file: %s", err)
+		}
+		*startStr = lastDateStr["end"]
+		// fmt.Println("startStr: ", *startStr)
+		// костыль
+		t, err := time.Parse("2006-01-02 15:04:05", *startStr)
+		t = t.Add(-time.Hour * 6)
+		if err != nil {
+			log.Fatalf("error parsing last file: %s", err)
+		}
+		*periodStr = time.Since(t).String()
+		// fmt.Println("t: ", t)
+		// fmt.Println("now utc", time.Now().UTC())
+		// fmt.Println("now local ", time.Now().Local())
+		// fmt.Println("now ", time.Now())
+		// fmt.Println("period: ", *periodStr)
 	}
 
 	if *startStr == "now" {
@@ -48,9 +90,21 @@ func main() {
 		log.Fatalf("invalid start datetime: %s", err)
 	}
 
+	if *periodStr == "" || *count < 1 {
+		fmt.Println("Usage of ", os.Args[0], ":")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
 	period, err := time.ParseDuration(*periodStr)
-	if err != nil || period > 24*time.Hour {
+	if err != nil {
 		log.Fatalf("invalid period: %s", err)
+	}
+
+	if period > 24*time.Hour {
+		// split period to 24h periods and add count
+		*count += int(period / (24 * time.Hour))
+		period = 24 * time.Hour
 	}
 
 	// check output path and create if not exists
@@ -72,6 +126,23 @@ func main() {
 	for i := 0; i < *count; i++ {
 		writeOnePeriod(sourceDb, start, period, *outputPath)
 		start = start.Add(period)
+	}
+
+	if last {
+		// save last processed period to file
+		lastDateStr := map[string]string{
+			// "start": start.Add(-period).Format("2006-01-02 15:04:05"),
+			"end": start.Format("2006-01-02 15:04:05"),
+		}
+		file, err := os.Create(*lastFile)
+		if err != nil {
+			log.Fatalf("error creating last file: %s", err)
+		}
+		defer file.Close()
+		jsonEncoder := json.NewEncoder(file)
+		if err = jsonEncoder.Encode(lastDateStr); err != nil {
+			log.Fatalf("error encoding last file: %s", err)
+		}
 	}
 	fmt.Println("Total time: ", time.Since(progStart))
 }
