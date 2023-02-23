@@ -1,3 +1,4 @@
+// todo: refactor code
 // todo: add description
 // todo: add output format (json, csv, etc.) (default: json)
 // todo: add output compression (gzip, bzip2, etc.) (default: gzip)
@@ -9,10 +10,13 @@ package main
 import (
 	"compress/gzip"
 	"database/sql"
+
+	// "encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
+
+	// "log"
 	"os"
 	"time"
 
@@ -26,6 +30,7 @@ func main() {
 	count := flag.Int("count", 1, "number of periods to process")
 	lastFile := flag.String("last", "mssql2file.last", "file to save/load last processed period")
 	help := flag.Bool("help", false, "show help")
+	// format := flag.String("format", "json", "output format (json, csv, etc.)")
 
 	flag.Parse()
 
@@ -42,52 +47,47 @@ func main() {
 	}
 
 	last := false
+	allPeriodStr := *periodStr
 
-	switch *startStr {
-	case "now":
-		*startStr = time.Now().Format("2006-01-02 15:04:05")
-	case "yesterday":
-		*startStr = time.Now().AddDate(0, 0, -1).Format("2006-01-02 15:04:05")
-		*periodStr = "24h"
-	case "today":
-		*startStr = time.Now().Format("2006-01-02 15:04:05")
-		*periodStr = "24h"
-	case "last":
+	if *startStr == "last" {
 		last = true
 		// read last processed period from file
 		file, err := os.Open(*lastFile)
 		if err != nil {
-			log.Fatalf("error opening last file: %s", err)
+			// log.Fatalf("error opening last file: %s", err)
+			fmt.Fprintln(os.Stderr, "error opening last file: ", err)
 		}
 		defer file.Close()
 		jsonParser := json.NewDecoder(file)
 		var lastDateStr map[string]string
 		if err = jsonParser.Decode(&lastDateStr); err != nil {
-			log.Fatalf("error parsing last file: %s", err)
+			// log.Fatalf("error parsing last file: %s", err)
+			fmt.Fprintln(os.Stderr, "error parsing last file: ", err)
 		}
 		*startStr = lastDateStr["end"]
 		// fmt.Println("startStr: ", *startStr)
-		// костыль
+		// fix: костыль
 		t, err := time.Parse("2006-01-02 15:04:05", *startStr)
 		t = t.Add(-time.Hour * 6)
 		if err != nil {
-			log.Fatalf("error parsing last file: %s", err)
-		}
-		*periodStr = time.Since(t).String()
-		// fmt.Println("t: ", t)
-		// fmt.Println("now utc", time.Now().UTC())
-		// fmt.Println("now local ", time.Now().Local())
-		// fmt.Println("now ", time.Now())
-		// fmt.Println("period: ", *periodStr)
-	}
+			// log.Fatalf("error parsing last file: %s", err)
+			fmt.Fprintln(os.Stderr, "error parsing last file: ", err)
 
-	if *startStr == "now" {
-		*startStr = time.Now().Format("2006-01-02 15:04:05")
+		}
+		allPeriodStr = time.Since(t).String()
 	}
 
 	start, err := time.Parse("2006-01-02 15:04:05", *startStr)
 	if err != nil {
-		log.Fatalf("invalid start datetime: %s", err)
+		// log.Fatalf("invalid start datetime: %s", err)
+		fmt.Fprintln(os.Stderr, "invalid start datetime: ", err)
+	}
+
+	// If no period is specified, or if the count is less than 1, then print an error message and exit
+	if *periodStr == "" || *count < 1 {
+		fmt.Println("Usage of ", os.Args[0], ":")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
 
 	if *periodStr == "" || *count < 1 {
@@ -98,20 +98,34 @@ func main() {
 
 	period, err := time.ParseDuration(*periodStr)
 	if err != nil {
-		log.Fatalf("invalid period: %s", err)
+		// log.Fatalf("invalid period: %s", err)
+		fmt.Fprintln(os.Stderr, "invalid period: ", err)
 	}
 
-	if period > 24*time.Hour {
-		// split period to 24h periods and add count
-		*count += int(period / (24 * time.Hour))
-		period = 24 * time.Hour
+	allPeriod, err := time.ParseDuration(allPeriodStr)
+	if err != nil {
+		// log.Fatalf("invalid period: %s", err)
+		fmt.Fprintln(os.Stderr, "invalid period: ", err)
 	}
+
+	if allPeriod > period {
+		*count = int(allPeriod / period)
+	}
+
+	if period > time.Hour*24 {
+		*count = int(period / (time.Hour * 24))
+		period = time.Hour * 24
+	}
+
+	fmt.Println("count: ", *count)
+	// log.Printf("start: %s, period: %s, count: %d", start, period, *count)
 
 	// check output path and create if not exists
 	if _, err := os.Stat(*outputPath); os.IsNotExist(err) {
 		err := os.MkdirAll(*outputPath, 0755)
 		if err != nil {
-			log.Fatalf("invalid output path: %s", err)
+			// log.Fatalf("invalid output path: %s", err)
+			fmt.Fprintln(os.Stderr, "invalid output path: ", err)
 		}
 	}
 
@@ -119,7 +133,8 @@ func main() {
 	// Connect to MSSQL source database
 	sourceDb, err := sql.Open("mssql", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;")
 	if err != nil {
-		log.Fatal(err)
+		// log.Fatal(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 	defer sourceDb.Close()
 
@@ -136,15 +151,18 @@ func main() {
 		}
 		file, err := os.Create(*lastFile)
 		if err != nil {
-			log.Fatalf("error creating last file: %s", err)
+			// log.Fatalf("error creating last file: %s", err)
+			fmt.Fprintln(os.Stderr, "error creating last file: ", err)
 		}
 		defer file.Close()
 		jsonEncoder := json.NewEncoder(file)
 		if err = jsonEncoder.Encode(lastDateStr); err != nil {
-			log.Fatalf("error encoding last file: %s", err)
+			// log.Fatalf("error encoding last file: %s", err)
+			fmt.Fprintln(os.Stderr, "error encoding last file: ", err)
 		}
 	}
 	fmt.Println("Total time: ", time.Since(progStart))
+	// log.Println("Total time: ", time.Since(progStart))
 }
 
 type Time time.Time
@@ -163,27 +181,20 @@ func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, pat
 	startStr := start.Format("2006-01-02 15:04:05")
 	endStr := end.Format("2006-01-02 15:04:05")
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
-
-	// qCount := fmt.Sprintf("SELECT count(*) FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
-	// rowsCount := sourceDb.QueryRow(qCount)
-	// var count int
-	// err := rowsCount.Scan(&count)
-	// if err != nil {
-	// 	log.Println(err.Error())
-	// }
-	// fmt.Print(" %%: ", 0)
-	// currRecord := 0
+	// log.Println(time.Now().Format("2006-01-02 15:04:05"), " : ", startStr, " - ", endStr)
 
 	q := fmt.Sprintf("SELECT h.TagName, h.[DateTime], h.Value FROM history h WHERE h.[DateTime] BETWEEN '%s' AND '%s' and h.tagname like '%%' and h.Value is not null", startStr, endStr)
 	rows, err := sourceDb.Query(q)
 	if err != nil {
-		log.Println(err.Error())
+		// log.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err.Error())
 	}
 	defer rows.Close()
 
-	file, err := os.Create(path + "/result_" + start.Format("060102_150405") + "_" + end.Format("060102_150405") + ".json.gz")
+	file, err := os.Create(path + "\\result_" + start.Format("060102_150405") + "_" + end.Format("060102_150405") + ".json.gz")
 	if err != nil {
-		log.Fatal(err)
+		// log.Fatal(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 	defer file.Close()
 
@@ -191,6 +202,9 @@ func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, pat
 	defer gzipWriter.Close()
 
 	encoder := json.NewEncoder(gzipWriter)
+	// if outFormat == "csv" {
+	// 	encoder = csv.NewEncoder(gzipWriter)
+	// }
 
 	var data []map[string]interface{}
 
@@ -201,7 +215,8 @@ func writeOnePeriod(sourceDb *sql.DB, start time.Time, period time.Duration, pat
 	}
 
 	if err := encoder.Encode(data); err != nil {
-		log.Fatal(err)
+		// log.Fatal(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 }
 
@@ -211,7 +226,8 @@ func writeRow(rows *sql.Rows, data []map[string]interface{}) []map[string]interf
 	var value float64
 
 	if err := rows.Scan(&tagName, &dateTime, &value); err != nil {
-		log.Println(err.Error())
+		// log.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
 	d := map[string]interface{}{
