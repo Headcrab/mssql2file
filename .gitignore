@@ -36,6 +36,7 @@ result_*
 *.tar
 alll2022.bat
 bin
+<<<<<<< HEAD
 copy_new/*
 output/*
 cmd/output/*
@@ -43,3 +44,5 @@ app.syso
 app_16.png
 app_32.png
 cmd/main.syso
+=======
+>>>>>>> c03b545 (* ref)
