@@ -37,6 +37,7 @@ result_*
 alll2022.bat
 bin
 <<<<<<< HEAD
+<<<<<<< HEAD
 copy_new/*
 output/*
 cmd/output/*
@@ -46,3 +47,6 @@ app_32.png
 cmd/main.syso
 =======
 >>>>>>> c03b545 (* ref)
+=======
+copy_new/*
+>>>>>>> 6de6c1a (*oop ref)
