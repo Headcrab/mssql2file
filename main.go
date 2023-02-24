@@ -20,43 +20,41 @@ import (
 
 // структура, представляющая параметры командной строки
 type CommandLineArgs struct {
-	Start        string // начальная дата и время
-	Period       string // длительность периода
-	OutputPath   string // директория для сохранения выходных файлов
-	Count        int    // количество периодов для обработки
-	LastFileName string // имя файла для сохранения/загрузки последнего обработанного периода
-	OutputFormat string // формат выходных файлов (json, csv и т.д.)
-	Compression  string // метод сжатия (gzip, bzip2 и т.д.)
-	NameTemplate string // шаблон имени выходных файлов
-	DateFormat   string // формат даты для использования в имени файла
-	CsvDelimiter string // разделитель полей в csv-файле
-	CsvHeader    bool   // флаг, указывающий, что в csv-файле должен быть заголовок
+	Help             bool   // флаг, указывающий, что нужно вывести справку по параметрам командной строки
+	Start            string // начальная дата и время
+	Period           string // длительность периода
+	OutputPath       string // директория для сохранения выходных файлов
+	Count            int    // количество периодов для обработки
+	LastFileName     string // имя файла для сохранения/загрузки последнего обработанного периода
+	OutputFormat     string // формат выходных файлов (json, csv и т.д.)
+	Compression      string // метод сжатия (gzip, bzip2 и т.д.)
+	NameTemplate     string // шаблон имени выходных файлов
+	DateFormat       string // формат даты для использования в имени файла
+	CsvDelimiter     string // разделитель полей в csv-файле
+	CsvHeader        bool   // флаг, указывающий, что в csv-файле должен быть заголовок
+	ConnectionString string // строка подключения к источнику данных
+	Query            string // запрос к источнику данных
+	Silient          bool   // флаг, указывающий, что не нужно выводить сообщения в консоль
 }
 
 // структура, представляющая приложение
 type App struct {
-	start                  time.Time     // начальная дата и время
-	period                 time.Duration // длительность периода
-	outputPath             string        // директория для сохранения выходных файлов
-	count                  int           // количество периодов для обработки
-	lastFile               string        // имя файла для сохранения/загрузки последнего обработанного периода
-	outputFormat           string        // формат выходных файлов (json, csv и т.д.)
-	compression            string        // метод сжатия (gzip, bzip2 и т.д.)
-	nameTemplate           string        // шаблон имени выходных файлов
-	dateFormat             string        // формат даты для использования в имени файла
-	csvDelimiter           string        // разделитель полей в csv-файле
-	csvHeader              bool          // флаг, указывающий, что в csv-файле должен быть заголовок
-	isLast                 bool          // флаг, указывающий, что последний период был загружен из файла
-	sourceConnectionString string        // строка подключения к источнику данных
-	sourceDb               *sql.DB       // источник данных
-	query                  string        // запрос к источнику данных
-}
-
-// структура, представляющая одну запись из базы данных
-type Record struct {
-	TagName  string
-	DateTime time.Time
-	Value    float64
+	start            time.Time     // начальная дата и время
+	period           time.Duration // длительность периода
+	outputPath       string        // директория для сохранения выходных файлов
+	count            int           // количество периодов для обработки
+	lastFile         string        // имя файла для сохранения/загрузки последнего обработанного периода
+	outputFormat     string        // формат выходных файлов (json, csv и т.д.)
+	compression      string        // метод сжатия (gzip, bzip2 и т.д.)
+	nameTemplate     string        // шаблон имени выходных файлов
+	dateFormat       string        // формат даты для использования в имени файла
+	csvDelimiter     string        // разделитель полей в csv-файле
+	csvHeader        bool          // флаг, указывающий, что в csv-файле должен быть заголовок
+	isLast           bool          // флаг, указывающий, что последний период был загружен из файла
+	Db               *sql.DB       // источник данных
+	connectionString string        // строка подключения к источнику данных
+	query            string        // запрос к источнику данных
+	silient          bool          // флаг, указывающий, что не нужно выводить сообщения в консоль
 }
 
 func main() {
@@ -82,46 +80,43 @@ func main() {
 // создает новое приложение с заданными параметрами командной строки
 func NewApp(args *CommandLineArgs) (*App, error) {
 
-	isLast := false
+	app := &App{
+		outputPath:       args.OutputPath,
+		count:            args.Count,
+		lastFile:         args.LastFileName,
+		outputFormat:     args.OutputFormat,
+		compression:      args.Compression,
+		nameTemplate:     args.NameTemplate,
+		dateFormat:       args.DateFormat,
+		csvDelimiter:     args.CsvDelimiter,
+		csvHeader:        args.CsvHeader,
+		connectionString: args.ConnectionString,
+		query:            args.Query,
+		silient:          args.Silient,
+	}
+
+	var err error
+	app.isLast = false
 	if args.Start == "last" {
-		s, err := getLastPeriodDate(args.LastFileName)
+		args.Start, err = app.getLastPeriodDate(args.LastFileName)
 		if err != nil {
 			return nil, err
 		}
-		args.Start = s
-		isLast = true
+		app.isLast = true
 	}
-	start, err := time.Parse("2006-01-02 15:04:05", args.Start)
 
+	app.start, err = time.Parse("2006-01-02 15:04:05", args.Start)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при разборе даты: %v", err)
 	}
 
-	period, err := time.ParseDuration(args.Period)
+	app.period, err = time.ParseDuration(args.Period)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при разборе периода: %v", err)
 	}
-	if period > 24*time.Hour {
+	if app.period > 24*time.Hour {
 		return nil, fmt.Errorf("период не может быть больше 24 часов")
 	}
-
-	app := &App{
-		start:        start,
-		period:       period,
-		outputPath:   args.OutputPath,
-		count:        args.Count,
-		lastFile:     args.LastFileName,
-		outputFormat: args.OutputFormat,
-		compression:  args.Compression,
-		nameTemplate: args.NameTemplate,
-		dateFormat:   args.DateFormat,
-		csvDelimiter: args.CsvDelimiter,
-		csvHeader:    args.CsvHeader,
-		isLast:       isLast,
-	}
-
-	app.sourceConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;"
-	app.query = "SELECT h.TagName, h.[DateTime], h.Value FROM history h WHERE h.[DateTime] > '{start}' AND h.[DateTime] <= '{end}' AND h.tagname like '{tag}' AND h.Value is not null;"
 
 	return app, nil
 }
@@ -130,8 +125,9 @@ func NewApp(args *CommandLineArgs) (*App, error) {
 func parseCommandLineArgs() (*CommandLineArgs, error) {
 	args := &CommandLineArgs{}
 
-	flag.StringVar(&args.Start, "start", "", "начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), обязательный параметр")
-	flag.StringVar(&args.Period, "period", "", "длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), обязательный параметр")
+	flag.BoolVar(&args.Silient, "silient", true, "флаг, указывающий, что не нужно выводить сообщения в консоль")
+	flag.StringVar(&args.Start, "start", "last", "начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last")
+	flag.StringVar(&args.Period, "period", "1m", "длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m")
 	flag.StringVar(&args.OutputPath, "output", ".\\", "директория для сохранения выходных файлов, по умолчанию: текущая директория")
 	flag.IntVar(&args.Count, "count", 1, "количество периодов для обработки, 0 - обработать все периоды до текущего момента, по умолчанию: 1")
 	flag.StringVar(&args.LastFileName, "last", "mssql2file.last", "файл для сохранения/загрузки последнего обработанного периода, по умолчанию: mssql2file.last")
@@ -141,17 +137,14 @@ func parseCommandLineArgs() (*CommandLineArgs, error) {
 	flag.StringVar(&args.Compression, "compression", "gz", "метод сжатия (none, gz, lz4), по умолчанию: gz")
 	flag.StringVar(&args.NameTemplate, "template", "hs_{start}_{end}_{period}.{format}[.]{compressoin}", "шаблон имени выходных файлов, по умолчанию: hs_{start}_{end}_{period}.{format}.{compressoin}")
 	flag.StringVar(&args.DateFormat, "date-format", "060102_150405", "формат даты для использования в имени файла, по умолчанию: 060102_150405")
+	flag.StringVar(&args.ConnectionString, "connection-string", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;", "строка подключения к БД MSSQL, по умолчанию HS0")
+	flag.StringVar(&args.Query, "query", "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND tagname like '{tag}' AND Value is not null;", "запрос к БД MSSQL, по умолчанию: SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND tagname like '{tag}' AND Value is not null;")
 
 	flag.Parse()
 
-	if args.Start == "" {
+	if args.Help {
 		flag.PrintDefaults()
-		return nil, fmt.Errorf("необходимо указать начальную дату и время")
-	}
-
-	if args.Period == "" || args.Count < 1 {
-		flag.PrintDefaults()
-		return nil, fmt.Errorf("необходимо указать длительность периода и количество периодов для обработки")
+		return nil, fmt.Errorf("помощь по параметрам командной строки")
 	}
 
 	return args, nil
@@ -188,7 +181,10 @@ func (app *App) Run() error {
 		return err
 	}
 
-	fmt.Println("Общее время: ", time.Since(progStart))
+	if !app.silient {
+		// время выполнения программы в формате 1h2m3s
+		fmt.Println("Время обработки: ", time.Since(progStart).Truncate(time.Second))
+	}
 
 	return nil
 }
@@ -196,7 +192,7 @@ func (app *App) Run() error {
 // подключается к базе данных
 func (app *App) connectToDatabase() error {
 	var err error
-	app.sourceDb, err = sql.Open("mssql", app.sourceConnectionString)
+	app.Db, err = sql.Open("mssql", app.connectionString)
 	if err != nil {
 		return fmt.Errorf("ошибка подключения к базе данных: %s", err)
 	}
@@ -220,7 +216,14 @@ func (app *App) saveLastPeriodDate(end time.Time) error {
 }
 
 // получает дату последнего обработанного периода из файла
-func getLastPeriodDate(fileName string) (string, error) {
+func (app *App) getLastPeriodDate(fileName string) (string, error) {
+	// проверряем существование файла
+	_, err := os.Stat(fileName)
+	if os.IsNotExist(err) && app.isLast {
+		app.saveLastPeriodDate(time.Now().Add(-app.period))
+		return "", fmt.Errorf("файл последнего обработанного периода не найден, создан новый")
+	}
+
 	file, err := os.Open(fileName)
 	if err != nil {
 		return "", fmt.Errorf("ошибка открытия файла последнего обработанного периода: %s", err)
@@ -233,11 +236,6 @@ func getLastPeriodDate(fileName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("ошибка чтения файла последнего обработанного периода: %s", err)
 	}
-
-	// lastDate, err := time.Parse("2006-01-02 15:04:05", lastPeriod)
-	// if err != nil {
-	// 	return "", fmt.Errorf("ошибка парсинга даты последнего обработанного периода: %s", err)
-	// }
 
 	return lastPeriodD + " " + lastPeriodT, nil
 }
@@ -267,7 +265,9 @@ func (app *App) processAllPeriods(start time.Time) error {
 
 // обрабатывает один период
 func (app *App) processPeriod(start time.Time, end time.Time) error {
-	fmt.Printf("Обработка периода с %s по %s\n", start.Format("2006-01-02 15:04:05"), end.Format("2006-01-02 15:04:05"))
+	if !app.silient {
+		fmt.Printf("Обработка периода с %s по %s\n", start.Format("2006-01-02 15:04:05"), end.Format("2006-01-02 15:04:05"))
+	}
 
 	data, err := app.loadData(start, end)
 	if err != nil {
@@ -284,12 +284,15 @@ func (app *App) processPeriod(start time.Time, end time.Time) error {
 
 // загружает данные из базы данных
 func (app *App) loadData(start time.Time, end time.Time) ([]map[string]interface{}, error) {
-	fmt.Println("Загрузка данных из базы данных")
+	beg := time.Now()
+	if !app.silient {
+		fmt.Print("Загрузка данных из базы данных")
+	}
 	app.query = strings.ReplaceAll(app.query, "{start}", start.Format("2006-01-02 15:04:05"))
 	app.query = strings.ReplaceAll(app.query, "{end}", end.Format("2006-01-02 15:04:05"))
 	app.query = strings.ReplaceAll(app.query, "{tag}", "%%")
 
-	rows, err := app.sourceDb.Query(app.query)
+	rows, err := app.Db.Query(app.query)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка загрузки данных из базы данных: %s", err)
 	}
@@ -302,16 +305,21 @@ func (app *App) loadData(start time.Time, end time.Time) ([]map[string]interface
 	}
 
 	if len(data) == 0 {
-		fmt.Println("Нет данных для обработки")
-		return nil, nil
+		return nil, fmt.Errorf("нет данных для обработки")
 	}
 
+	if !app.silient {
+		fmt.Printf(" - %d строк за %s\n", len(data), time.Since(beg).Truncate(time.Second))
+	}
 	return data, nil
 }
 
 // сохраняет данные в файл
 func (app *App) saveData(start time.Time, end time.Time, data []map[string]interface{}) error {
-	fmt.Println("Сохранение данных в файл")
+	beg := time.Now()
+	if !app.silient {
+		fmt.Print("Сохранение данных в файл")
+	}
 	fileName := app.generateFileName(start, end)
 
 	// проверяем путь к выходному файлу и создаем его, если не существует
@@ -329,7 +337,6 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 	defer file.Close()
 
 	var writer io.Writer
-
 	switch app.compression {
 	case "gz":
 		writer = gzip.NewWriter(file)
@@ -350,12 +357,14 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 	case "json":
 		encoder := json.NewEncoder(writer)
 		encoder.Encode(data)
+	// todo: не реализовано
 	// case "xml":
 	// 	encoder := xml.NewEncoder(writer)
 	// 	encoder.Encode(data)
 	case "yaml":
 		encoder := yaml.NewEncoder(writer)
 		encoder.Encode(data)
+	// todo: не реализовано
 	// case "toml":
 	// 	encoder := toml.NewEncoder(writer)
 	// 	encoder.Encode(data)
@@ -366,6 +375,10 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 	err = app.saveLastPeriodDate(end)
 	if err != nil {
 		return err
+	}
+
+	if !app.silient {
+		fmt.Printf(" - %s\n", time.Since(beg).Truncate(time.Second))
 	}
 
 	return nil
@@ -406,20 +419,27 @@ func (app *App) writeRow(rows *sql.Rows, data []map[string]interface{}) []map[st
 
 // конвертирует данные из базы данных в формат CSV
 func (app *App) convertDataToCsv(data []map[string]interface{}) [][]string {
-	rows := make([][]string, 0)
+	rows := make([][]string, len(data))
 
 	if app.csvHeader {
-		header := []string{"TagName", "DateTime", "Value"}
-		rows = append(rows, header)
+		header := make([]string, 0)
+		for k := range data[0] {
+			header = append(header, k)
+		}
+		rows[0] = header
+		rows = append(rows, []string{})
 	}
 
-	for _, d := range data {
-		row := []string{
-			d["TagName"].(string),
-			d["DateTime"].(time.Time).Format("2006-01-02 15:04:05.000"),
-			fmt.Sprintf("%f", d["Value"].(float64)),
+	for i, d := range data {
+		row := []string{}
+		for _, v := range d {
+			row = append(row, fmt.Sprintf("%v", v))
 		}
-		rows = append(rows, row)
+		if !app.csvHeader {
+			rows[i] = row
+		} else {
+			rows[i+1] = row
+		}
 	}
 
 	return rows
