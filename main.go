@@ -133,7 +133,7 @@ func parseCommandLineArgs() (*CommandLineArgs, error) {
 	flag.StringVar(&args.LastFileName, "last", "mssql2file.last", "файл для сохранения/загрузки последнего обработанного периода, по умолчанию: mssql2file.last")
 	flag.StringVar(&args.OutputFormat, "format", "json", "формат выходных файлов (json, csv, xml, yaml, toml), по умолчанию: json")
 	flag.StringVar(&args.CsvDelimiter, "csv_delimiter", ";", "разделитель полей в csv-файле, по умолчанию: ;")
-	flag.BoolVar(&args.CsvHeader, "csv_header", true, "выводить заголовок в csv-файле, по умолчанию: true")
+	flag.BoolVar(&args.CsvHeader, "csv_header", false, "выводить заголовок в csv-файле, по умолчанию: false")
 	flag.StringVar(&args.Compression, "compression", "gz", "метод сжатия (none, gz, lz4), по умолчанию: gz")
 	flag.StringVar(&args.NameTemplate, "template", "hs_{start}_{end}_{period}.{format}[.]{compressoin}", "шаблон имени выходных файлов, по умолчанию: hs_{start}_{end}_{period}.{format}.{compressoin}")
 	flag.StringVar(&args.DateFormat, "date-format", "060102_150405", "формат даты для использования в имени файла, по умолчанию: 060102_150405")
@@ -283,7 +283,7 @@ func (app *App) processPeriod(start time.Time, end time.Time) error {
 }
 
 // загружает данные из базы данных
-func (app *App) loadData(start time.Time, end time.Time) ([]map[string]interface{}, error) {
+func (app *App) loadData(start time.Time, end time.Time) ([][]string, error) {
 	beg := time.Now()
 	if !app.silient {
 		fmt.Print("Загрузка данных из базы данных")
@@ -298,10 +298,14 @@ func (app *App) loadData(start time.Time, end time.Time) ([]map[string]interface
 	}
 	defer rows.Close()
 
-	data := make([]map[string]interface{}, 0)
+	data := make([][]string, 0)
+
+	if app.outputFormat == "csv" && app.csvHeader {
+		data = append(data, app.writeHeader(rows))
+	}
 
 	for rows.Next() {
-		data = app.writeRow(rows, data)
+		data = append(data, app.writeRow(rows))
 	}
 
 	if len(data) == 0 {
@@ -314,8 +318,22 @@ func (app *App) loadData(start time.Time, end time.Time) ([]map[string]interface
 	return data, nil
 }
 
+// записывает заголовок в файл
+func (app *App) writeHeader(rows *sql.Rows) []string {
+	columns, err := rows.Columns()
+	if err != nil {
+		err = fmt.Errorf("ошибка получения заголовка: %s", err)
+		panic(err)
+	}
+
+	data := make([]string, len(columns))
+	copy(data, columns)
+
+	return data
+}
+
 // сохраняет данные в файл
-func (app *App) saveData(start time.Time, end time.Time, data []map[string]interface{}) error {
+func (app *App) saveData(start time.Time, end time.Time, data [][]string) error {
 	beg := time.Now()
 	if !app.silient {
 		fmt.Print("Сохранение данных в файл")
@@ -353,7 +371,7 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 		encoder := csv.NewWriter(writer)
 		// первый символ из app.csvDelimiter
 		encoder.Comma = rune(app.csvDelimiter[0])
-		encoder.WriteAll(app.convertDataToCsv(data))
+		encoder.WriteAll(data)
 	case "json":
 		encoder := json.NewEncoder(writer)
 		encoder.Encode(data)
@@ -385,13 +403,13 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 }
 
 // записывает строку в массив данных
-func (app *App) writeRow(rows *sql.Rows, data []map[string]interface{}) []map[string]interface{} {
+func (app *App) writeRow(rows *sql.Rows) []string {
 	columns, err := rows.Columns()
 	if err != nil {
 		panic(fmt.Errorf("ошибка получения столбцов: %s", err))
 	}
 
-	values := make([]interface{}, len(columns))
+	values := make([]string, len(columns))
 	valuePtrs := make([]interface{}, len(columns))
 	for i := range columns {
 		valuePtrs[i] = &values[i]
@@ -402,45 +420,38 @@ func (app *App) writeRow(rows *sql.Rows, data []map[string]interface{}) []map[st
 		panic(fmt.Errorf("ошибка чтения строк: %s", err))
 	}
 
-	row := make(map[string]interface{})
-	for i, col := range columns {
-		var v interface{}
-		val := values[i]
-		b, ok := val.([]byte)
-		if ok {
-			v = string(b)
-		} else {
-			v = val
-		}
-		row[col] = v
+	row := make([]string, len(columns))
+	for i := range columns {
+		row[i] = values[i]
 	}
-	return append(data, row)
+
+	return row
 }
 
 // конвертирует данные из базы данных в формат CSV
-func (app *App) convertDataToCsv(data []map[string]interface{}) [][]string {
-	rows := make([][]string, len(data))
+// func (app *App) convertDataToCsv(data []map[string]interface{}) [][]string {
+// 	rows := make([][]string, len(data))
 
-	if app.csvHeader {
-		header := make([]string, 0)
-		for k := range data[0] {
-			header = append(header, k)
-		}
-		rows[0] = header
-		rows = append(rows, []string{})
-	}
+// 	if app.csvHeader {
+// 		header := make([]string, 0)
+// 		for k := range data[0] {
+// 			header = append(header, k)
+// 		}
+// 		rows[0] = header
+// 		rows = append(rows, []string{})
+// 	}
 
-	for i, d := range data {
-		row := []string{}
-		for _, v := range d {
-			row = append(row, fmt.Sprintf("%v", v))
-		}
-		if !app.csvHeader {
-			rows[i] = row
-		} else {
-			rows[i+1] = row
-		}
-	}
+// 	for i, d := range data {
+// 		row := []string{}
+// 		for _, v := range d {
+// 			row = append(row, fmt.Sprintf("%v", v))
+// 		}
+// 		if !app.csvHeader {
+// 			rows[i] = row
+// 		} else {
+// 			rows[i+1] = row
+// 		}
+// 	}
 
-	return rows
-}
+// 	return rows
+// }
