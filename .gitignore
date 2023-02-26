@@ -40,6 +40,7 @@ bin
 <<<<<<< HEAD
 copy_new/*
 output/*
+<<<<<<< HEAD
 cmd/output/*
 app.syso
 app_16.png
@@ -50,3 +51,6 @@ cmd/main.syso
 =======
 copy_new/*
 >>>>>>> 6de6c1a (*oop ref)
+=======
+
+>>>>>>> 0665e59 (*ref+)

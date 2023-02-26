@@ -45,6 +45,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.2.1
 	github.com/denisenkom/go-mssqldb v0.12.3
+	github.com/grailbio/base v0.0.10
 	github.com/jlaffaye/ftp v0.1.0
 <<<<<<< HEAD
 >>>>>>> c03b545 (* ref)
