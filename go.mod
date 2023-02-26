@@ -13,6 +13,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.2.1
 	github.com/denisenkom/go-mssqldb v0.12.3
+	github.com/grailbio/base v0.0.10
 	github.com/jlaffaye/ftp v0.1.0
 	github.com/pierrec/lz4 v2.6.1+incompatible
 	gopkg.in/yaml.v2 v2.4.0

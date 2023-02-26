@@ -1,0 +1,17 @@
+{
+  "Cnnection_string": "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;",
+  "Compression": "none",
+  "Count": 10,
+  "Csv_delimiter": "\t",
+  "Csv_header": false,
+  "Date_format": "060102_150405",
+  "Last_period_end": "2023-02-20 20:00:00",
+  "Output": "./output/",
+  "Output_format": "csv",
+  "Period": "-1d",
+  "Query": "SELECT format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, TagName, Value FROM history WHERE DateTime \u003e '{start}' AND DateTime \u003c= '{end}' AND tagname like '{tag}' AND Value is not null;",
+  "Query0": "SELECT wwTagKey, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime \u003e '{start}' AND DateTime \u003c= '{end}' AND tagname like '{tag}' AND Value is not null;",
+  "Silient": false,
+  "Start": "last",
+  "Template": ""
+}
