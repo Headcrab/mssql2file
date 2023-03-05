@@ -1,4 +1,3 @@
-// package main
 package main
 
 import (
@@ -10,7 +9,6 @@ import (
 	"fmt"
 	"io"
 
-	// "io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -19,7 +17,6 @@ import (
 	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
-	"github.com/grailbio/base/tsv"
 	"github.com/pierrec/lz4"
 	"gopkg.in/yaml.v2"
 )
@@ -230,14 +227,6 @@ func mergeArgs(args *CommandLineArgs) error {
 
 	args.add(&configFileArgs)
 	args.add(&envArgs)
-	// if configFileUsed {
-	// 	// Конфигурационный файл имеет наивысший приоритет
-	// 	mergeStructs(&args, &configFileArgs)
-	// 	mergeStructs(&args, &envArgs)
-	// } else {
-	// 	// Переменные окружения имеют приоритет над параметрами командной строки
-	// 	mergeStructs(&args, &envArgs)
-	// }
 
 	return nil
 }
@@ -293,7 +282,7 @@ func (app *App) generateFileName(start time.Time, end time.Time) string {
 		fileName = strings.ReplaceAll(fileName, "{compression}", "")
 		fileName = strings.ReplaceAll(fileName, "[.]", "")
 	} else {
-		fileName = strings.ReplaceAll(fileName, "{compressoin}", app.compression)
+		fileName = strings.ReplaceAll(fileName, "{compression}", app.compression)
 		fileName = strings.ReplaceAll(fileName, "[.]", ".")
 	}
 	return fileName
@@ -518,12 +507,6 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 		// первый символ из app.csvDelimiter
 		encoder.Comma = rune(app.csvDelimiter[0])
 		encoder.WriteAll(app.convertDataToCsv(data))
-		encoder.Flush()
-	case "tsv":
-		encoder := tsv.NewRowWriter(writer)
-		for _, row := range data {
-			encoder.Write(row)
-		}
 		encoder.Flush()
 	case "json":
 		encoder := json.NewEncoder(writer)
