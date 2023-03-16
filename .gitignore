@@ -38,4 +38,4 @@ alll2022.bat
 bin
 copy_new/*
 output/*
-
+cmd/output/*

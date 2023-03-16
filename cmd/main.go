@@ -53,7 +53,7 @@ func (args *CommandLineArgs) add(source *CommandLineArgs) {
 }
 
 // структура, представляющая приложение
-type App struct {
+type Exporter struct {
 	// lastFile         string        // имя файла для сохранения/загрузки последнего обработанного периода
 	start            time.Time     // начальная дата и время
 	period           time.Duration // длительность периода
@@ -82,13 +82,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	app, err := NewApp(args)
+	exporter, err := NewExporter(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	err = app.Run()
+	err = exporter.Run()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -96,9 +96,9 @@ func main() {
 }
 
 // создает новое приложение с заданными параметрами командной строки
-func NewApp(args *CommandLineArgs) (*App, error) {
+func NewExporter(args *CommandLineArgs) (*Exporter, error) {
 
-	app := &App{
+	app := &Exporter{
 		// lastFile:         args.LastFileName,
 		outputPath:       args.Output,
 		count:            args.Count,
@@ -149,12 +149,11 @@ func NewApp(args *CommandLineArgs) (*App, error) {
 func parseCommandLineArgs() (*CommandLineArgs, error) {
 	args := &CommandLineArgs{}
 
-	// flag.StringVar(&args.LastFileName, "last", "mssql2file.last", "файл для сохранения/загрузки последнего обработанного периода, по умолчанию: mssql2file.last")
 	flag.BoolVar(&args.Silient, "silient", false, "флаг, указывающий, что не нужно выводить сообщения в консоль")
 	flag.StringVar(&args.Start, "start", "", "начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last")
 	flag.StringVar(&args.Period, "period", "", "длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m")
 	flag.StringVar(&args.Output, "output", "", "директория для сохранения выходных файлов, по умолчанию: текущая директория")
-	flag.StringVar(&args.Template, "name", "", "шаблон имени выходных файлов, по умолчанию: {table}_{start}_{end}[.]{ext}")
+	flag.StringVar(&args.Template, "name", "", "шаблон имени выходных файлов, по умолчанию: hs_{start}_{end}_{period}.{format}.{compression}")
 	flag.IntVar(&args.Count, "count", 0, "количество периодов для обработки, 0 - обработать все периоды до текущего момента, по умолчанию: 1")
 	flag.StringVar(&args.Output_format, "format", "", "формат выходных файлов (json, csv, xml, yaml, toml), по умолчанию: json")
 	flag.StringVar(&args.Csv_delimiter, "csv_delimiter", "", "разделитель полей в csv-файле, по умолчанию: ;")
@@ -163,7 +162,7 @@ func parseCommandLineArgs() (*CommandLineArgs, error) {
 	flag.StringVar(&args.Date_format, "date_format", "", "формат даты для использования в имени файла, по умолчанию: 060102_150405")
 	flag.StringVar(&args.Connection_string, "connection_string", "", "строка подключения к БД MSSQL, по умолчанию HS0")
 	flag.StringVar(&args.Query, "query", "", "запрос к БД MSSQL")
-	flag.StringVar(&args.Config_file, "config", "", "файл конфигурации, по умолчанию: не используется")
+	flag.StringVar(&args.Config_file, "config", "", "файл конфигурации, по умолчанию: mssql2file.cfg")
 	flag.StringVar(&args.Last_period_end, "last_period_end", "", "дата и время окончания последнего периода, по умолчанию: не используется")
 
 	flag.Parse()
@@ -200,7 +199,6 @@ func readConfigFile(filePath string) (CommandLineArgs, error) {
 func mergeArgs(args *CommandLineArgs) error {
 	// Чтение переменных окружения
 	envArgs := CommandLineArgs{
-		// LastFileName:     getEnvString("M2F_LAST", "mssql2file.last"),
 		Silient:           getEnvBool("M2F_SILIENT", false),
 		Start:             getEnvString("M2F_START", "last"),
 		Period:            getEnvString("M2F_PERIOD", "1m"),
@@ -210,11 +208,11 @@ func mergeArgs(args *CommandLineArgs) error {
 		Csv_delimiter:     getEnvString("M2F_CSV_DELIMITER", ","),
 		Csv_header:        getEnvBool("M2F_CSV_HEADER", false),
 		Compression:       getEnvString("M2F_COMPRESSION", "gz"),
-		Template:          getEnvString("M2F_TEMPLATE", "hs_{start}_{end}_{period}.{format}[.]{compression}"),
+		Template:          getEnvString("M2F_TEMPLATE", "hs_{start}_{end}_{period}.{format}.{compression}"),
 		Date_format:       getEnvString("M2F_DATE_FORMAT", "060102_150405"),
 		Connection_string: getEnvString("M2F_CONNECTION_STRING", "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;"),
-		Query:             getEnvString("M2F_QUERY", "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND tagname like '{tag}' AND Value is not null;"),
-		Config_file:       getEnvString("M2F_CONFIG", "mssql2file.cfg.json"),
+		Query:             getEnvString("M2F_QUERY", "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"),
+		Config_file:       getEnvString("M2F_CONFIG", "mssql2file.cfg"),
 		Last_period_end:   getEnvString("M2F_LAST_PERIOD_END", ""),
 	}
 
@@ -268,41 +266,41 @@ func getEnvBool(key string, defValue bool) bool {
 }
 
 // генерирует имя файла для выходного файла
-func (app *App) generateFileName(start time.Time, end time.Time) string {
+func (exporter *Exporter) generateFileName(start time.Time, end time.Time) string {
 	// check / in the end of output path
-	if app.outputPath != "" && app.outputPath[len(app.outputPath)-1:] != "/" {
-		app.outputPath += "/"
+	if exporter.outputPath != "" && exporter.outputPath[len(exporter.outputPath)-1:] != "/" {
+		exporter.outputPath += "/"
 	}
-	fileName := app.outputPath + app.nameTemplate
-	fileName = strings.ReplaceAll(fileName, "{period}", app.period.String())
-	fileName = strings.ReplaceAll(fileName, "{start}", start.Format(app.dateFormat))
-	fileName = strings.ReplaceAll(fileName, "{end}", end.Format(app.dateFormat))
-	fileName = strings.ReplaceAll(fileName, "{format}", app.outputFormat)
-	if app.compression == "none" {
-		fileName = strings.ReplaceAll(fileName, "{compression}", "")
-		fileName = strings.ReplaceAll(fileName, "[.]", "")
+	fileName := exporter.outputPath + exporter.nameTemplate
+	fileName = strings.ReplaceAll(fileName, "{period}", exporter.period.String())
+	fileName = strings.ReplaceAll(fileName, "{start}", start.Format(exporter.dateFormat))
+	fileName = strings.ReplaceAll(fileName, "{end}", end.Format(exporter.dateFormat))
+	fileName = strings.ReplaceAll(fileName, "{format}", exporter.outputFormat)
+	if exporter.compression == "none" {
+		fileName = strings.ReplaceAll(fileName, ".{compression}", "")
+		// fileName = strings.ReplaceAll(fileName, "[.]", "")
 	} else {
-		fileName = strings.ReplaceAll(fileName, "{compression}", app.compression)
-		fileName = strings.ReplaceAll(fileName, "[.]", ".")
+		fileName = strings.ReplaceAll(fileName, "{compression}", exporter.compression)
+		// fileName = strings.ReplaceAll(fileName, "[.]", ".")
 	}
 	return fileName
 }
 
 // запускает приложение
-func (app *App) Run() error {
-	err := app.connectToDatabase()
+func (exporter *Exporter) Run() error {
+	err := exporter.connectToDatabase()
 	if err != nil {
 		return err
 	}
 
 	progStart := time.Now()
 
-	err = app.processAllPeriods(app.start)
+	err = exporter.processAllPeriods(exporter.start)
 	if err != nil {
 		return err
 	}
 
-	if !app.silient {
+	if !exporter.silient {
 		// время выполнения программы в формате 1h2m3s
 		fmt.Println("Время обработки: ", time.Since(progStart).Truncate(time.Second))
 	}
@@ -311,9 +309,9 @@ func (app *App) Run() error {
 }
 
 // подключается к базе данных
-func (app *App) connectToDatabase() error {
+func (exporter *Exporter) connectToDatabase() error {
 	var err error
-	app.Db, err = sql.Open("mssql", app.connectionString)
+	exporter.Db, err = sql.Open("mssql", exporter.connectionString)
 	if err != nil {
 		return fmt.Errorf("ошибка подключения к базе данных: %s", err)
 	}
@@ -321,16 +319,16 @@ func (app *App) connectToDatabase() error {
 }
 
 // сохраняет дату последнего обработанного периода в файл
-func (app *App) saveLastPeriodDate(end time.Time) error {
+func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
 	// если файл существует, то пишем в него дату последнего обработанного периода
 	// если файла не существует, то создаем его и пишем в него дату последнего обработанного периода app.lastPeriodDate
 
 	// получаем путь к выходному файлу
-	outputPath := filepath.Dir(app.configFile)
+	outputPath := filepath.Dir(exporter.configFile)
 	var file *os.File
 	var config map[string]interface{}
 	// проверяем существование файла и создаем его, если не существует
-	if _, err := os.Stat(app.configFile); os.IsNotExist(err) {
+	if _, err := os.Stat(exporter.configFile); os.IsNotExist(err) {
 		// проверяем существование папки
 		if _, err := os.Stat(outputPath); os.IsNotExist(err) {
 			// создаем папку
@@ -340,14 +338,14 @@ func (app *App) saveLastPeriodDate(end time.Time) error {
 			}
 		}
 		// создаем файл
-		file, err = os.Create(app.configFile)
+		file, err = os.Create(exporter.configFile)
 		if err != nil {
 			return fmt.Errorf("ошибка создания файла последнего обработанного периода: %s", err)
 		}
 		defer file.Close()
 	} else {
 		// читаем существующие данные из файла
-		file, err = os.Open(app.configFile)
+		file, err = os.Open(exporter.configFile)
 		if err != nil {
 			return fmt.Errorf("ошибка открытия файла последнего обработанного периода: %s", err)
 		}
@@ -360,7 +358,7 @@ func (app *App) saveLastPeriodDate(end time.Time) error {
 		// close file
 		file.Close()
 		// open file for write
-		file, err = os.OpenFile(app.configFile, os.O_RDWR, 0755)
+		file, err = os.OpenFile(exporter.configFile, os.O_RDWR, 0755)
 		if err != nil {
 			return fmt.Errorf("ошибка открытия файла последнего обработанного периода на запись: %s", err)
 		}
@@ -383,20 +381,20 @@ func (app *App) saveLastPeriodDate(end time.Time) error {
 }
 
 // обрабатывает все периоды
-func (app *App) processAllPeriods(start time.Time) error {
+func (exporter *Exporter) processAllPeriods(start time.Time) error {
 	now, _ := time.Parse("2006-01-02 15:04:05", time.Now().Format("2006-01-02 15:04:05"))
-	if app.count == 0 {
+	if exporter.count == 0 {
 		// рассчитываем количество периодов с учетом периода и даты начала и текущего момента
-		app.count = int(now.Sub(start).Minutes() / app.period.Minutes())
+		exporter.count = int(now.Sub(start).Minutes() / exporter.period.Minutes())
 	}
-	for i := 0; i < app.count; i++ {
-		end := start.Add(app.period)
+	for i := 0; i < exporter.count; i++ {
+		end := start.Add(exporter.period)
 		// если конец периода после текущего момента то выходим из цикла
 		if end.After(now) {
 			break
 		}
 
-		err := app.processPeriod(start, end)
+		err := exporter.processPeriod(start, end)
 		if err != nil {
 			return err
 		}
@@ -408,22 +406,22 @@ func (app *App) processAllPeriods(start time.Time) error {
 }
 
 // обрабатывает один период
-func (app *App) processPeriod(start time.Time, end time.Time) error {
+func (exporter *Exporter) processPeriod(start time.Time, end time.Time) error {
 	// если start > end, то меняем их местами
 	if start.After(end) {
 		start, end = end, start
 	}
 
-	if !app.silient {
+	if !exporter.silient {
 		fmt.Printf("Обработка периода с %s по %s\n", start.Format("2006-01-02 15:04:05"), end.Format("2006-01-02 15:04:05"))
 	}
 
-	data, err := app.loadData(start, end)
+	data, err := exporter.loadData(start, end)
 	if err != nil {
 		return err
 	}
 
-	err = app.saveData(start, end, data)
+	err = exporter.saveData(start, end, data)
 	if err != nil {
 		return err
 	}
@@ -432,16 +430,16 @@ func (app *App) processPeriod(start time.Time, end time.Time) error {
 }
 
 // загружает данные из базы данных
-func (app *App) loadData(start time.Time, end time.Time) ([]map[string]interface{}, error) {
+func (exporter *Exporter) loadData(start time.Time, end time.Time) ([]map[string]interface{}, error) {
 	beg := time.Now()
-	if !app.silient {
-		fmt.Println("Загрузка данных из базы данных")
+	if !exporter.silient {
+		fmt.Print("Загрузка данных из базы данных ")
 	}
-	app.query = strings.ReplaceAll(app.query, "{start}", start.Format("2006-01-02 15:04:05"))
-	app.query = strings.ReplaceAll(app.query, "{end}", end.Format("2006-01-02 15:04:05"))
-	app.query = strings.ReplaceAll(app.query, "{tag}", "%%")
+	exporter.query = strings.ReplaceAll(exporter.query, "{start}", start.Format("2006-01-02 15:04:05"))
+	exporter.query = strings.ReplaceAll(exporter.query, "{end}", end.Format("2006-01-02 15:04:05"))
+	exporter.query = strings.ReplaceAll(exporter.query, "{tag}", "%%")
 
-	rows, err := app.Db.Query(app.query)
+	rows, err := exporter.Db.Query(exporter.query)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка загрузки данных из базы данных: %s", err)
 	}
@@ -454,26 +452,26 @@ func (app *App) loadData(start time.Time, end time.Time) ([]map[string]interface
 	// }
 
 	for rows.Next() {
-		data = append(data, app.writeRow(rows))
+		data = append(data, exporter.writeRow(rows))
 	}
 
 	if len(data) == 0 {
 		return nil, fmt.Errorf("нет данных для обработки")
 	}
 
-	if !app.silient {
-		fmt.Printf(" - %d строк за %s\n", len(data), time.Since(beg).Truncate(time.Second))
+	if !exporter.silient {
+		fmt.Printf("- %d строк за %s\n", len(data), time.Since(beg).Truncate(time.Second))
 	}
 	return data, nil
 }
 
 // сохраняет данные в файл
-func (app *App) saveData(start time.Time, end time.Time, data []map[string]interface{}) error {
+func (exporter *Exporter) saveData(start time.Time, end time.Time, data []map[string]interface{}) error {
 	beg := time.Now()
-	if !app.silient {
+	if !exporter.silient {
 		fmt.Print("Сохранение данных в файл")
 	}
-	fileName := app.generateFileName(start, end)
+	fileName := exporter.generateFileName(start, end)
 	outputPath := filepath.Dir(fileName)
 	// проверяем путь к выходному файлу и создаем его, если не существует
 	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
@@ -490,7 +488,7 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 	defer file.Close()
 
 	var writer io.Writer
-	switch app.compression {
+	switch exporter.compression {
 	case "gz":
 		writer = gzip.NewWriter(file)
 		defer writer.(*gzip.Writer).Close()
@@ -501,12 +499,12 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 		writer = file
 	}
 
-	switch app.outputFormat {
+	switch exporter.outputFormat {
 	case "csv":
 		encoder := csv.NewWriter(writer)
 		// первый символ из app.csvDelimiter
-		encoder.Comma = rune(app.csvDelimiter[0])
-		encoder.WriteAll(app.convertDataToCsv(data))
+		encoder.Comma = rune(exporter.csvDelimiter[0])
+		encoder.WriteAll(exporter.convertDataToCsv(data))
 		encoder.Flush()
 	case "json":
 		encoder := json.NewEncoder(writer)
@@ -519,15 +517,15 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 	// 	encoder := toml.NewEncoder(writer)
 	// 	encoder.Encode(data)
 	default:
-		return fmt.Errorf("неизвестный формат выходных данных: %s", app.outputFormat)
+		return fmt.Errorf("неизвестный формат выходных данных: %s", exporter.outputFormat)
 	}
 
-	err = app.saveLastPeriodDate(end)
+	err = exporter.saveLastPeriodDate(end)
 	if err != nil {
 		return err
 	}
 
-	if !app.silient {
+	if !exporter.silient {
 		fmt.Printf(" - %s\n", time.Since(beg).Truncate(time.Second))
 	}
 
@@ -535,16 +533,16 @@ func (app *App) saveData(start time.Time, end time.Time, data []map[string]inter
 }
 
 // записывает строку в массив данных
-func (app *App) writeRow(rows *sql.Rows) map[string]interface{} {
+func (exporter *Exporter) writeRow(rows *sql.Rows) map[string]interface{} {
 	var err error
-	app.columns, err = rows.Columns()
+	exporter.columns, err = rows.Columns()
 	if err != nil {
 		panic(fmt.Errorf("ошибка получения столбцов: %s", err))
 	}
 
-	values := make([]interface{}, len(app.columns))
-	valuePtrs := make([]interface{}, len(app.columns))
-	for i := range app.columns {
+	values := make([]interface{}, len(exporter.columns))
+	valuePtrs := make([]interface{}, len(exporter.columns))
+	for i := range exporter.columns {
 		valuePtrs[i] = &values[i]
 	}
 
@@ -554,7 +552,7 @@ func (app *App) writeRow(rows *sql.Rows) map[string]interface{} {
 	}
 
 	row := make(map[string]interface{})
-	for i, col := range app.columns {
+	for i, col := range exporter.columns {
 		var v interface{}
 		val := values[i]
 		b, ok := val.([]byte)
@@ -570,21 +568,21 @@ func (app *App) writeRow(rows *sql.Rows) map[string]interface{} {
 }
 
 // конвертирует данные из базы данных в формат CSV
-func (app *App) convertDataToCsv(data []map[string]interface{}) [][]string {
+func (exporter *Exporter) convertDataToCsv(data []map[string]interface{}) [][]string {
 	rows := make([][]string, len(data))
 
-	if app.csvHeader {
-		rows[0] = app.columns
+	if exporter.csvHeader {
+		rows[0] = exporter.columns
 		rows = append(rows, []string{})
 	}
 
 	for i, d := range data {
 		row := []string{}
 		// must be alvays in same order
-		for _, k := range app.columns {
+		for _, k := range exporter.columns {
 			row = append(row, fmt.Sprintf("%v", d[k]))
 		}
-		if !app.csvHeader {
+		if !exporter.csvHeader {
 			rows[i] = row
 		} else {
 			rows[i+1] = row
