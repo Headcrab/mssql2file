@@ -41,6 +41,7 @@ bin
 copy_new/*
 output/*
 <<<<<<< HEAD
+<<<<<<< HEAD
 cmd/output/*
 app.syso
 app_16.png
@@ -54,3 +55,6 @@ copy_new/*
 =======
 
 >>>>>>> 0665e59 (*ref+)
+=======
+cmd/output/*
+>>>>>>> 931b7e5 (* config rename)
