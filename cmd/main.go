@@ -1969,88 +1969,23 @@ func (app *App) convertDataToCsv(data []map[string]interface{}) [][]string {
 package main
 
 import (
-	"compress/gzip"
-	"database/sql"
-	"encoding/csv"
-	"encoding/json"
-	"flag"
 	"fmt"
-	"io"
+	"mssql2file/internal/configs"
+	"mssql2file/internal/exporter"
 
 	"os"
-	"path/filepath"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
-	"github.com/pierrec/lz4"
-	"gopkg.in/yaml.v2"
 )
 
-// структура, представляющая параметры командной строки
-type CommandLineArgs struct {
-	// LastFileName     string // имя файла для сохранения/загрузки последнего обработанного периода
-	Help              bool   // флаг, указывающий, что нужно вывести справку по параметрам командной строки
-	Start             string // начальная дата и время
-	Period            string // длительность периода
-	Output            string // директория для сохранения выходных файлов
-	Count             int    // количество периодов для обработки
-	Output_format     string // формат выходных файлов (json, csv и т.д.)
-	Compression       string // метод сжатия (gzip, bzip2 и т.д.)
-	Template          string // шаблон имени выходных файлов
-	Date_format       string // формат даты для использования в имени файла
-	Csv_delimiter     string // разделитель полей в csv-файле
-	Csv_header        bool   // флаг, указывающий, что в csv-файле должен быть заголовок
-	Connection_string string // строка подключения к источнику данных
-	Query             string // запрос к источнику данных
-	Silient           bool   // флаг, указывающий, что не нужно выводить сообщения в консоль
-	Config_file       string // файл конфигурации
-	Last_period_end   string // дата и время окончания последнего периода
-}
-
-func (args *CommandLineArgs) add(source *CommandLineArgs) {
-	v := reflect.ValueOf(args).Elem()
-	s := reflect.ValueOf(source).Elem()
-	for i := 0; i < v.NumField(); i++ {
-		if v.Field(i).IsZero() {
-			v.Field(i).Set(s.Field(i))
-		}
-	}
-}
-
-// структура, представляющая приложение
-type Exporter struct {
-	// lastFile         string        // имя файла для сохранения/загрузки последнего обработанного периода
-	start            time.Time     // начальная дата и время
-	period           time.Duration // длительность периода
-	outputPath       string        // директория для сохранения выходных файлов
-	count            int           // количество периодов для обработки
-	outputFormat     string        // формат выходных файлов (json, csv и т.д.)
-	compression      string        // метод сжатия (gzip, bzip2 и т.д.)
-	nameTemplate     string        // шаблон имени выходных файлов
-	dateFormat       string        // формат даты для использования в имени файла
-	csvDelimiter     string        // разделитель полей в csv-файле
-	csvHeader        bool          // флаг, указывающий, что в csv-файле должен быть заголовок
-	isLast           bool          // флаг, указывающий, что последний период был загружен из файла
-	Db               *sql.DB       // источник данных
-	connectionString string        // строка подключения к источнику данных
-	query            string        // запрос к источнику данных
-	silient          bool          // флаг, указывающий, что не нужно выводить сообщения в консоль
-	columns          []string      // список колонок
-	configFile       string        // файл конфигурации
-	lastPeriodEnd    string        // дата и время окончания последнего периода
-}
-
 func main() {
-	args, err := parseCommandLineArgs()
+	args, err := configs.LoadConfigs()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	exporter, err := NewExporter(args)
+	exporter, err := exporter.NewExporter(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -2062,6 +1997,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+<<<<<<< HEAD
 
 // создает новое приложение с заданными параметрами командной строки
 func NewExporter(args *CommandLineArgs) (*Exporter, error) {
@@ -2573,3 +2509,5 @@ func (exporter *Exporter) convertDataToCsv(data []map[string]interface{}) [][]st
 ========
 >>>>>>>> 9fb95e0 (+makefile):cmd/main.go
 >>>>>>> 9fb95e0 (+makefile)
+=======
+>>>>>>> e7725ee (+ config, format, comressor, exported moved)
