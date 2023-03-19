@@ -1,8 +1,15 @@
+<<<<<<< HEAD
 // todo: проверить корректность работы
+=======
+>>>>>>> e66dc11 (*ref)
 package file
 
 import (
 	"io"
+<<<<<<< HEAD
+=======
+	"io/ioutil"
+>>>>>>> e66dc11 (*ref)
 	"os"
 
 	"github.com/jlaffaye/ftp"
@@ -16,7 +23,11 @@ type FTPLocation struct {
 }
 
 func connectAndLoginFTP(addr, user, pass string) (*ftp.ServerConn, error) {
+<<<<<<< HEAD
 	conn, err := ftp.Dial(addr)
+=======
+	conn, err := ftp.Connect(addr)
+>>>>>>> e66dc11 (*ref)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +54,11 @@ func (f FTPLocation) Open() (File, error) {
 	}
 	defer res.Close()
 
+<<<<<<< HEAD
 	tmpfile, err := os.CreateTemp("", "ftptmp")
+=======
+	tmpfile, err := ioutil.TempFile("", "ftptmp")
+>>>>>>> e66dc11 (*ref)
 	if err != nil {
 		return nil, err
 	}

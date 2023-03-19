@@ -6,7 +6,10 @@ import (
 	"io"
 )
 
+<<<<<<< HEAD
 // RegisterEncoder регистрирует новый кодировщик CSV
+=======
+>>>>>>> e66dc11 (*ref)
 func init() {
 	RegisterEncoder("csv", newCSVEncoder)
 }
@@ -21,7 +24,11 @@ func newCSVEncoder(writer io.Writer) Encoder {
 	return &CSVEncoder{writer: csv.NewWriter(writer), header: true, delimiter: ","}
 }
 
+<<<<<<< HEAD
 func (ce *CSVEncoder) Encode(v []map[string]string) error {
+=======
+func (ce *CSVEncoder) Encode(v []map[string]interface{}) error {
+>>>>>>> e66dc11 (*ref)
 	ce.writer.Comma = rune(ce.delimiter[0])
 	ce.writer.WriteAll(ce.toRecords(v))
 	ce.writer.Flush()
@@ -34,7 +41,11 @@ func (ce *CSVEncoder) SetFormatParams(params map[string]interface{}) {
 }
 
 // конвертирует данные из базы данных в формат CSV
+<<<<<<< HEAD
 func (ce *CSVEncoder) toRecords(data []map[string]string) [][]string {
+=======
+func (ce *CSVEncoder) toRecords(data []map[string]interface{}) [][]string {
+>>>>>>> e66dc11 (*ref)
 	i := 0
 	if ce.header {
 		i = 1

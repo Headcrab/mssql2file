@@ -3,12 +3,16 @@ module mssql2file
 go 1.21
 
 require (
+<<<<<<< HEAD
 	github.com/ClickHouse/ch-go v0.58.2 // indirect
 	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/frankban/quicktest v1.14.5 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.6.1 // indirect
+=======
+	github.com/geoffgarside/ber v1.1.0 // indirect
+>>>>>>> e66dc11 (*ref)
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 <<<<<<< HEAD
@@ -39,7 +43,8 @@ require (
 =======
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	golang.org/x/crypto v0.5.0 // indirect
+	github.com/hirochachacha/go-smb2 v1.1.0 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
 )
 
 require (
