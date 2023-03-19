@@ -1,8 +1,8 @@
-package compressors
+package compressor
 
 import (
-	"fmt"
 	"io"
+	"mssql2file/internal/errors"
 )
 
 type Compressor interface {
@@ -20,7 +20,7 @@ func RegisterCompressor(name string, enc func(io.Writer) Compressor) {
 func NewCompressor(name string, w io.Writer) (Compressor, error) {
 	compr, ok := compressors[name]
 	if !ok {
-		return nil, fmt.Errorf("формат сжатия %s не поддерживается", name)
+		return nil, errors.New(errors.UnsupportedCompressionType, name)
 	}
 	return compr(w), nil
 }

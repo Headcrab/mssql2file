@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"mssql2file/internal/configs"
+	"mssql2file/internal/config"
 	"mssql2file/internal/exporter"
 
 	"os"
@@ -11,13 +11,13 @@ import (
 )
 
 func main() {
-	args, err := configs.LoadConfigs()
+	args, err := config.Load()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	exporter, err := exporter.NewExporter(args)
+	exporter, err := exporter.Create(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)

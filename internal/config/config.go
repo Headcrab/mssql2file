@@ -1,9 +1,10 @@
-package configs
+package config
 
 import (
 	"encoding/json"
+	// "errors"
 	"flag"
-	"fmt"
+	"mssql2file/internal/errors"
 	"os"
 	"reflect"
 	"strings"
@@ -29,6 +30,7 @@ type Config struct {
 	Last_period_end   string // дата и время окончания последнего периода
 }
 
+// добавляет в args значения из source, если в args значение не задано
 func (args *Config) add(source *Config) {
 	v := reflect.ValueOf(args).Elem()
 	s := reflect.ValueOf(source).Elem()
@@ -40,7 +42,7 @@ func (args *Config) add(source *Config) {
 }
 
 // получает параметры командной строки и возвращает структуру CommandLineArgs
-func LoadConfigs() (*Config, error) {
+func Load() (*Config, error) {
 	args := &Config{}
 
 	flag.BoolVar(&args.Silient, "silient", false, "флаг, указывающий, что не нужно выводить сообщения в консоль")
@@ -48,7 +50,7 @@ func LoadConfigs() (*Config, error) {
 	flag.StringVar(&args.Period, "period", "", "длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m")
 	flag.StringVar(&args.Output, "output", "", "директория для сохранения выходных файлов, по умолчанию: текущая директория")
 	flag.StringVar(&args.Template, "name", "", "шаблон имени выходных файлов, по умолчанию: hs_{start}_{end}_{period}.{format}.{compression}")
-	flag.IntVar(&args.Count, "count", 0, "количество периодов для обработки, 0 - обработать все периоды до текущего момента, по умолчанию: 1")
+	flag.IntVar(&args.Count, "count", 0, "количество периодов для обработки, 0 - обработать все периоды до текущего момента, по умолчанию: 0")
 	flag.StringVar(&args.Output_format, "format", "", "формат выходных файлов (json, csv, xml, yaml, toml), по умолчанию: json")
 	flag.StringVar(&args.Csv_delimiter, "csv_delimiter", "", "разделитель полей в csv-файле, по умолчанию: ;")
 	flag.BoolVar(&args.Csv_header, "csv_header", false, "выводить заголовок в csv-файле, по умолчанию: false")
@@ -63,7 +65,7 @@ func LoadConfigs() (*Config, error) {
 
 	if args.Help {
 		flag.PrintDefaults()
-		return nil, fmt.Errorf("помощь по параметрам командной строки")
+		return nil, errors.New(errors.CommandLineHelp, "")
 	}
 
 	err := mergeArgs(args)
@@ -74,38 +76,7 @@ func LoadConfigs() (*Config, error) {
 	return args, nil
 }
 
-// чтение переменных окружения с префиксом в структуру Config
-func readEnvVars(prefix string) Config {
-	v := reflect.ValueOf(Config{})
-	t := v.Type()
-	var args Config
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		key := prefix + "_" + strings.ToUpper(field.Name)
-		value := os.Getenv(key)
-		if value != "" {
-			reflect.ValueOf(&args).Elem().Field(i).SetString(value)
-		}
-	}
-	return args
-}
-
-func readConfigFile(filePath string) (Config, error) {
-	configFile, err := os.Open(filePath)
-	if err != nil {
-		return Config{}, err
-	}
-	defer configFile.Close()
-
-	jsonParser := json.NewDecoder(configFile)
-	args := &Config{}
-	if err = jsonParser.Decode(args); err != nil {
-		return Config{}, err
-	}
-
-	return *args, nil
-}
-
+// объединяет параметры командной строки с параметрами из файла конфигурации и переменными окружения
 func mergeArgs(args *Config) error {
 
 	gefaultArgs := Config{
@@ -114,7 +85,7 @@ func mergeArgs(args *Config) error {
 		Period:            "1m",
 		Output:            ".",
 		Template:          "hs_{start}_{end}_{period}.{format}.{compression}",
-		Count:             1,
+		Count:             0,
 		Output_format:     "json",
 		Csv_delimiter:     ";",
 		Csv_header:        false,
@@ -141,4 +112,37 @@ func mergeArgs(args *Config) error {
 	args.add(&gefaultArgs)
 
 	return nil
+}
+
+// чтение переменных окружения с префиксом в структуру Config
+func readEnvVars(prefix string) Config {
+	v := reflect.ValueOf(Config{})
+	t := v.Type()
+	var args Config
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		key := prefix + "_" + strings.ToUpper(field.Name)
+		value := os.Getenv(key)
+		if value != "" {
+			reflect.ValueOf(&args).Elem().Field(i).SetString(value)
+		}
+	}
+	return args
+}
+
+// чтение файла конфигурации в структуру Config
+func readConfigFile(filePath string) (Config, error) {
+	configFile, err := os.Open(filePath)
+	if err != nil {
+		return Config{}, err
+	}
+	defer configFile.Close()
+
+	jsonParser := json.NewDecoder(configFile)
+	args := &Config{}
+	if err = jsonParser.Decode(args); err != nil {
+		return Config{}, err
+	}
+
+	return *args, nil
 }
