@@ -3,6 +3,7 @@ package format
 import (
 	"io"
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"mssql2file/internal/apperrors"
 )
 
@@ -10,6 +11,9 @@ type Encoder interface {
 	Encode(data []map[string]string) error
 =======
 	"mssql2file/internal/errors"
+=======
+	apperrors "mssql2file/internal/errors"
+>>>>>>> 252be83 (+ apperrors)
 )
 
 type Encoder interface {
@@ -32,10 +36,14 @@ func NewEncoder(name string, w io.Writer) (Encoder, error) {
 	enc, ok := formatEncoders[name]
 	if !ok {
 <<<<<<< HEAD
+<<<<<<< HEAD
 		return nil, apperrors.New(apperrors.UnsupportedFormat, name)
 =======
 		return nil, errors.New(errors.UnsupportedFormat, name)
 >>>>>>> e66dc11 (*ref)
+=======
+		return nil, apperrors.New(apperrors.UnsupportedFormat, name)
+>>>>>>> 252be83 (+ apperrors)
 	}
 	return enc(w), nil
 }

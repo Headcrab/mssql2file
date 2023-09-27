@@ -4,8 +4,11 @@ go 1.21
 
 require (
 <<<<<<< HEAD
+<<<<<<< HEAD
 	github.com/ClickHouse/ch-go v0.58.2 // indirect
 	github.com/andybalholm/brotli v1.0.6 // indirect
+=======
+>>>>>>> 252be83 (+ apperrors)
 	github.com/frankban/quicktest v1.14.5 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
@@ -43,13 +46,12 @@ require (
 =======
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hirochachacha/go-smb2 v1.1.0 // indirect
-	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/crypto v0.10.0 // indirect
 )
 
 require (
-	github.com/BurntSushi/toml v1.2.1
 	github.com/denisenkom/go-mssqldb v0.12.3
+<<<<<<< HEAD
 	github.com/grailbio/base v0.0.10
 	github.com/jlaffaye/ftp v0.1.0
 <<<<<<< HEAD
@@ -58,4 +60,9 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible
 	gopkg.in/yaml.v2 v2.4.0
 >>>>>>> 6de6c1a (*oop ref)
+=======
+	github.com/hirochachacha/go-smb2 v1.1.0
+	github.com/jlaffaye/ftp v0.2.0
+	github.com/pierrec/lz4 v2.6.1+incompatible
+>>>>>>> 252be83 (+ apperrors)
 )

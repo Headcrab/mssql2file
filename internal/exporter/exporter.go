@@ -4,6 +4,7 @@ import (
 	"database/sql"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"mssql2file/internal/apperrors"
 
 	// "sync" // for v2
@@ -12,6 +13,9 @@ import (
 =======
 	"mssql2file/internal/errors"
 >>>>>>> e66dc11 (*ref)
+=======
+	apperrors "mssql2file/internal/errors"
+>>>>>>> 252be83 (+ apperrors)
 
 	"encoding/json"
 	"fmt"
@@ -84,6 +88,7 @@ func Create(args *config.Config) (*Exporter, error) {
 	if args.Last_period_end == "" && args.Start == "last" {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 		return nil, apperrors.New(apperrors.BeginDateNotSet, "")
 =======
 		return nil, fmt.Errorf("не задана дата начала обработки")
@@ -91,6 +96,9 @@ func Create(args *config.Config) (*Exporter, error) {
 =======
 		return nil, errors.New(errors.BeginDateNotSet, "")
 >>>>>>> e66dc11 (*ref)
+=======
+		return nil, apperrors.New(apperrors.BeginDateNotSet, "")
+>>>>>>> 252be83 (+ apperrors)
 	}
 	var err error
 	app.isLast = false
@@ -99,6 +107,7 @@ func Create(args *config.Config) (*Exporter, error) {
 		if err != nil {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return nil, apperrors.New(apperrors.BeginDateParse, err.Error())
 =======
 			return nil, fmt.Errorf("ошибка при разборе даты: %v", err)
@@ -106,6 +115,9 @@ func Create(args *config.Config) (*Exporter, error) {
 =======
 			return nil, errors.New(errors.BeginDateParse, err.Error())
 >>>>>>> e66dc11 (*ref)
+=======
+			return nil, apperrors.New(apperrors.BeginDateParse, err.Error())
+>>>>>>> 252be83 (+ apperrors)
 		}
 		app.isLast = true
 	} else {
@@ -114,6 +126,7 @@ func Create(args *config.Config) (*Exporter, error) {
 		if err != nil {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return nil, apperrors.New(apperrors.BeginDateParse, err.Error())
 =======
 			return nil, fmt.Errorf("ошибка при разборе даты: %v", err)
@@ -121,11 +134,15 @@ func Create(args *config.Config) (*Exporter, error) {
 =======
 			return nil, errors.New(errors.BeginDateParse, err.Error())
 >>>>>>> e66dc11 (*ref)
+=======
+			return nil, apperrors.New(apperrors.BeginDateParse, err.Error())
+>>>>>>> 252be83 (+ apperrors)
 		}
 	}
 
 	app.period, err = time.ParseDuration(args.Period)
 	if err != nil {
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 		return nil, apperrors.New(apperrors.PeriodParse, err.Error())
@@ -144,6 +161,12 @@ func Create(args *config.Config) (*Exporter, error) {
 	if app.period > 24*time.Hour {
 		return nil, errors.New(errors.PeriodTooLong, "")
 >>>>>>> e66dc11 (*ref)
+=======
+		return nil, apperrors.New(apperrors.PeriodParse, err.Error())
+	}
+	if app.period > 24*time.Hour {
+		return nil, apperrors.New(apperrors.PeriodTooLong, "")
+>>>>>>> 252be83 (+ apperrors)
 	}
 
 	return app, nil
@@ -174,9 +197,12 @@ func (exporter *Exporter) Run() error {
 		return err
 	}
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
+=======
+>>>>>>> 252be83 (+ apperrors)
 	progStart := time.Now()
 
 	err = exporter.processAllPeriods(exporter.start)
@@ -247,35 +273,32 @@ func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
 =======
 	exporter.Db, err = sql.Open("mssql", exporter.config.Connection_string)
 	if err != nil {
-		return errors.New(errors.DbConnection, err.Error())
+		return apperrors.New(apperrors.DbConnection, err.Error())
 	}
 	return nil
 }
 
-// сохраняет дату последнего обработанного периода в файл
+// Сохраняет дату последнего обработанного периода в файл
 func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
-	// получаем путь к выходному файлу
+	// Получаем путь к выходному файлу.
 	outputPath := filepath.Dir(exporter.config.Config_file)
-	var file *os.File
-	var config map[string]interface{}
-	var err error
-	if _, e := os.Stat(exporter.config.Config_file); os.IsNotExist(e) {
-		// если файла не существует, то создаем его и пишем в него дату последнего обработанного периода app.lastPeriodDate
-		file, err = exporter.createNewFile(outputPath)
-	} else {
-		// если файл существует, то пишем в него дату последнего обработанного периода
-		file, err = exporter.getExistingFile(&config)
+
+	// Проверяем, существует ли файл, и читаем его содержимое в config, если он существует.
+	config := make(map[string]interface{})
+	if _, e := os.Stat(exporter.config.Config_file); !os.IsNotExist(e) {
+		if file, err := os.Open(exporter.config.Config_file); err == nil {
+			defer file.Close()
+			if err = json.NewDecoder(file).Decode(&config); err != nil {
+				return apperrors.New(apperrors.LastPeriodWrite, err.Error())
+			}
+		} else {
+			return err
+		}
 	}
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	// добавляем в структуру новую дату последнего обработанного периода
-	if config == nil {
-		config = make(map[string]interface{})
-	}
-	// пишем в файл дату последнего обработанного периода в json 'Last_period_end'
+
+	// Обновляем config новой датой.
 	config["Last_period_end"] = end.Format("2006-01-02 15:04:05")
+<<<<<<< HEAD
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	err = encoder.Encode(config)
@@ -286,6 +309,19 @@ func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
 =======
 		return errors.New(errors.LastPeriodWrite, err.Error())
 >>>>>>> e66dc11 (*ref)
+=======
+
+	// Записываем обновленный config в файл.
+	if file, err := exporter.createNewFile(outputPath); err == nil {
+		defer file.Close()
+		encoder := json.NewEncoder(file)
+		encoder.SetIndent("", "  ")
+		if err = encoder.Encode(config); err != nil {
+			return apperrors.New(apperrors.LastPeriodWrite, err.Error())
+		}
+	} else {
+		return err
+>>>>>>> 252be83 (+ apperrors)
 	}
 
 	return nil
@@ -306,20 +342,20 @@ func (exporter *Exporter) createNewFile(outputPath string) (*os.File, error) {
 func (exporter *Exporter) getExistingFile(config *map[string]interface{}) (*os.File, error) {
 	file, err := os.Open(exporter.config.Config_file)
 	if err != nil {
-		return nil, errors.New(errors.LastPeriodRead, err.Error())
+		return nil, apperrors.New(apperrors.LastPeriodRead, err.Error())
 	}
 	defer file.Close()
 
 	err = json.NewDecoder(file).Decode(&config)
 	if err != nil {
-		return nil, errors.New(errors.LastPeriodParse, err.Error())
+		return nil, apperrors.New(apperrors.LastPeriodParse, err.Error())
 	}
 
 	file.Close()
 
 	file, err = os.OpenFile(exporter.config.Config_file, os.O_RDWR, 0755)
 	if err != nil {
-		return nil, errors.New(errors.LastPeriodFileOpen, err.Error())
+		return nil, apperrors.New(apperrors.LastPeriodFileOpen, err.Error())
 	}
 	return file, nil
 }
@@ -327,13 +363,17 @@ func (exporter *Exporter) getExistingFile(config *map[string]interface{}) (*os.F
 func (exporter *Exporter) createNewFile(outputPath string) (*os.File, error) {
 	err := os.MkdirAll(outputPath, 0755)
 	if err != nil {
-		return nil, errors.New(errors.LastPeriodFolderCreate, err.Error())
+		return nil, apperrors.New(apperrors.LastPeriodFolderCreate, err.Error())
 	}
 
 	file, err := os.Create(exporter.config.Config_file)
 	if err != nil {
+<<<<<<< HEAD
 		return nil, errors.New(errors.LastPeriodFileCreate, err.Error())
 >>>>>>> e66dc11 (*ref)
+=======
+		return nil, apperrors.New(apperrors.LastPeriodFileCreate, err.Error())
+>>>>>>> 252be83 (+ apperrors)
 	}
 	return file, nil
 }
@@ -509,27 +549,52 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) ([]map[string
 
 	rows, err := exporter.Db.Query(exporter.config.Query)
 	if err != nil {
-		return nil, errors.New(errors.DbQuery, err.Error())
+		return nil, apperrors.New(apperrors.DbQuery, err.Error())
 	}
 	defer rows.Close()
 
-	data := make([]map[string]interface{}, 0)
+	data := make([]map[string]interface{}, 0, 30000000)
+
+	// for rows.Next() {
+	// 	d, err := exporter.writeRow(rows)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	data = append(data, d)
+	// }
+
+	//
+	const batchSize = 1000
+	batch := make([]map[string]interface{}, 0, batchSize)
 
 	for rows.Next() {
 		d, err := exporter.writeRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		data = append(data, d)
+		batch = append(batch, d)
+		if len(batch) >= batchSize {
+			data = append(data, batch...)
+			batch = batch[:0]
+		}
 	}
 
+	if len(batch) > 0 {
+		data = append(data, batch...)
+	}
+	//
+
 	if len(data) == 0 {
+<<<<<<< HEAD
 <<<<<<< HEAD
 		return nil, fmt.Errorf("нет данных для обработки")
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
 =======
 		return nil, errors.New(errors.DbNoData, "")
 >>>>>>> e66dc11 (*ref)
+=======
+		return nil, apperrors.New(apperrors.DbNoData, "")
+>>>>>>> 252be83 (+ apperrors)
 	}
 
 	if !exporter.config.Silient {
@@ -560,6 +625,7 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data []map[st
 		if err != nil {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return apperrors.New(apperrors.OutputWrongPath, err.Error())
 =======
 			return fmt.Errorf("неверный путь к выходному файлу: %s", err)
@@ -567,11 +633,15 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data []map[st
 =======
 			return errors.New(errors.OutputWrongPath, err.Error())
 >>>>>>> e66dc11 (*ref)
+=======
+			return apperrors.New(apperrors.OutputWrongPath, err.Error())
+>>>>>>> 252be83 (+ apperrors)
 		}
 	}
 
 	file, err := os.Create(fileName)
 	if err != nil {
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 		return apperrors.New(apperrors.OutputCreateFile, err.Error())
@@ -588,6 +658,9 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data []map[st
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
 =======
 		return errors.New(errors.OutputCreateFile, err.Error())
+=======
+		return apperrors.New(apperrors.OutputCreateFile, err.Error())
+>>>>>>> 252be83 (+ apperrors)
 	}
 	defer file.Close()
 
@@ -648,8 +721,12 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 	var err error
 	columns, err := rows.Columns()
 	if err != nil {
+<<<<<<< HEAD
 		return nil, errors.New(errors.DbColumns, err.Error())
 >>>>>>> e66dc11 (*ref)
+=======
+		return nil, apperrors.New(apperrors.DbColumns, err.Error())
+>>>>>>> 252be83 (+ apperrors)
 	}
 
 	values := make([]interface{}, len(columns))
@@ -685,7 +762,7 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 =======
 	err = rows.Scan(valuePtrs...)
 	if err != nil {
-		return nil, errors.New(errors.DbScan, err.Error())
+		return nil, apperrors.New(apperrors.DbScan, err.Error())
 	}
 
 	row := make(map[string]interface{})

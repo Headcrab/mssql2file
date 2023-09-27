@@ -2,10 +2,14 @@ package file
 
 import (
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"mssql2file/internal/apperrors"
 =======
 	"mssql2file/internal/errors"
 >>>>>>> e66dc11 (*ref)
+=======
+	apperrors "mssql2file/internal/errors"
+>>>>>>> 252be83 (+ apperrors)
 )
 
 const (
@@ -35,12 +39,16 @@ func NewFileLocation(locType string) (FileLocation, error) {
 	loc, ok := fileLocations[locType]
 	if !ok {
 <<<<<<< HEAD
+<<<<<<< HEAD
 		return nil, apperrors.New(apperrors.UnsupportedLocationType, locType)
 	}
 	return loc(), nil
 }
 =======
 		return nil, errors.New(errors.UnsupportedLocationType, locType)
+=======
+		return nil, apperrors.New(apperrors.UnsupportedLocationType, locType)
+>>>>>>> 252be83 (+ apperrors)
 	}
 	return loc(), nil
 }
