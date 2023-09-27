@@ -2,7 +2,7 @@ package compressor
 
 import (
 	"io"
-	"mssql2file/internal/errors"
+	apperrors "mssql2file/internal/errors"
 )
 
 type Compressor interface {
@@ -20,7 +20,7 @@ func RegisterCompressor(name string, enc func(io.Writer) Compressor) {
 func NewCompressor(name string, w io.Writer) (Compressor, error) {
 	compr, ok := compressors[name]
 	if !ok {
-		return nil, errors.New(errors.UnsupportedCompressionType, name)
+		return nil, apperrors.New(apperrors.UnsupportedCompressionType, name)
 	}
 	return compr(w), nil
 }

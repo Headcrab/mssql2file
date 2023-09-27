@@ -2,7 +2,7 @@ package format
 
 import (
 	"io"
-	"mssql2file/internal/errors"
+	apperrors "mssql2file/internal/errors"
 )
 
 type Encoder interface {
@@ -19,7 +19,7 @@ func RegisterEncoder(name string, enc func(io.Writer) Encoder) {
 func NewEncoder(name string, w io.Writer) (Encoder, error) {
 	enc, ok := formatEncoders[name]
 	if !ok {
-		return nil, errors.New(errors.UnsupportedFormat, name)
+		return nil, apperrors.New(apperrors.UnsupportedFormat, name)
 	}
 	return enc(w), nil
 }

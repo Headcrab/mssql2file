@@ -4,44 +4,69 @@ import (
 	"encoding/json"
 	// "errors"
 	"flag"
-	"mssql2file/internal/errors"
+	apperrors "mssql2file/internal/errors"
 	"os"
 	"reflect"
 	"strings"
 )
 
+const (
+	defaultStart            = "last"
+	defaultPeriod           = "1m"
+	defaultOutput           = "."
+	defaultTemplate         = "hs_{start}_{end}_{period}.{format}.{compression}"
+	defaultCount            = 0
+	defaultOutputFormat     = "json"
+	defaultCsvDelimiter     = ";"
+	defaultCsvHeader        = false
+	defaultCompression      = "gz"
+	defaultDateFormat       = "060102_150405"
+	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;"
+	defaultQuery            = "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"
+	defaultConfigFile       = "mssql2file.cfg"
+	defaultLastPeriodEnd    = ""
+	envVarPrefix            = "M2F"
+)
+
 // структура, представляющая параметры командной строки
 type Config struct {
 	Help              bool   // флаг, указывающий, что нужно вывести справку по параметрам командной строки
-	Start             string // начальная дата и время
-	Period            string // длительность периода
-	Output            string // директория для сохранения выходных файлов
-	Count             int    // количество периодов для обработки
-	Output_format     string // формат выходных файлов (json, csv и т.д.)
-	Compression       string // метод сжатия (gzip, bzip2 и т.д.)
-	Template          string // шаблон имени выходных файлов
-	Date_format       string // формат даты для использования в имени файла
-	Csv_delimiter     string // разделитель полей в csv-файле
-	Csv_header        bool   // флаг, указывающий, что в csv-файле должен быть заголовок
-	Connection_string string // строка подключения к источнику данных
-	Query             string // запрос к источнику данных
 	Silient           bool   // флаг, указывающий, что не нужно выводить сообщения в консоль
-	Config_file       string // файл конфигурации
-	Last_period_end   string // дата и время окончания последнего периода
+	Start             string // начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last
+	Period            string // длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m
+	Output            string // директория для сохранения выходных файлов, по умолчанию: текущая директория
+	Template          string // шаблон имени выходных файлов, по умолчанию: hs_{start}_{end}_{period}.{format}.{compression}
+	Count             int    // количество периодов для обработки, 0 - обработать все периоды до текущего момента, по умолчанию: 0
+	Output_format     string // формат выходных файлов (json, csv, xml, yaml, toml), по умолчанию: json
+	Csv_delimiter     string // разделитель полей в csv-файле, по умолчанию: ;
+	Csv_header        bool   // выводить заголовок в csv-файле, по умолчанию: false
+	Compression       string // метод сжатия (none, gz, lz4), по умолчанию: gz
+	Date_format       string // формат даты для использования в имени файла, по умолчанию: 060102_150405
+	Connection_string string // строка подключения к БД MSSQL, по умолчанию HS0
+	Query             string // запрос к БД MSSQL, по умолчанию: SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;
+	Config_file       string // файл конфигурации, по умолчанию: mssql2file.cfg
+	Last_period_end   string // дата и время окончания последнего обработанного периода, по умолчанию: ''
 }
 
-// добавляет в args значения из source, если в args значение не задано
-func (args *Config) add(source *Config) {
-	v := reflect.ValueOf(args).Elem()
-	s := reflect.ValueOf(source).Elem()
-	for i := 0; i < v.NumField(); i++ {
-		if v.Field(i).IsZero() {
-			v.Field(i).Set(s.Field(i))
-		}
-	}
+var defaultArgs = Config{
+	Silient:           false,
+	Start:             defaultStart,
+	Period:            defaultPeriod,
+	Output:            defaultOutput,
+	Template:          defaultTemplate,
+	Count:             defaultCount,
+	Output_format:     defaultOutputFormat,
+	Csv_delimiter:     defaultCsvDelimiter,
+	Csv_header:        defaultCsvHeader,
+	Compression:       defaultCompression,
+	Date_format:       defaultDateFormat,
+	Connection_string: defaultConnectionString,
+	Query:             defaultQuery,
+	Config_file:       defaultConfigFile,
+	Last_period_end:   defaultLastPeriodEnd,
 }
 
-// получает параметры командной строки и возвращает структуру CommandLineArgs
+// Load gets command line arguments and returns a Config struct.
 func Load() (*Config, error) {
 	args := &Config{}
 
@@ -65,7 +90,7 @@ func Load() (*Config, error) {
 
 	if args.Help {
 		flag.PrintDefaults()
-		return nil, errors.New(errors.CommandLineHelp, "")
+		return nil, apperrors.New(apperrors.CommandLineHelp, "")
 	}
 
 	err := mergeArgs(args)
@@ -76,61 +101,38 @@ func Load() (*Config, error) {
 	return args, nil
 }
 
-// объединяет параметры командной строки с параметрами из файла конфигурации и переменными окружения
+// mergeArgs merges command line arguments, environment variables, and config file values into a single Config struct.
 func mergeArgs(args *Config) error {
-
-	gefaultArgs := Config{
-		Silient:           false,
-		Start:             "last",
-		Period:            "1m",
-		Output:            ".",
-		Template:          "hs_{start}_{end}_{period}.{format}.{compression}",
-		Count:             0,
-		Output_format:     "json",
-		Csv_delimiter:     ";",
-		Csv_header:        false,
-		Compression:       "gz",
-		Date_format:       "060102_150405",
-		Connection_string: "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;",
-		Query:             "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;",
-		Config_file:       "mssql2file.cfg",
-		Last_period_end:   "",
+	sources := []Config{defaultArgs, readEnvVars(envVarPrefix)}
+	if args.Config_file != "" {
+		configFileArgs, err := readConfigFile(args.Config_file)
+		if err != nil {
+			return err
+		}
+		sources = append(sources, configFileArgs)
 	}
-
-	// Чтение переменных окружения
-	envArgs := readEnvVars("M2F")
-
-	if args.Config_file == "" {
-		args.Config_file = gefaultArgs.Config_file
-	}
-	configFileArgs, _ := readConfigFile(args.Config_file)
-
-	// Объединение значений
-
-	args.add(&configFileArgs)
-	args.add(&envArgs)
-	args.add(&gefaultArgs)
+	args.add(sources...)
 
 	return nil
 }
 
-// чтение переменных окружения с префиксом в структуру Config
+// readEnvVars reads environment variables with the given prefix and returns a Config struct.
 func readEnvVars(prefix string) Config {
-	v := reflect.ValueOf(Config{})
+	v := reflect.ValueOf(&Config{}).Elem()
 	t := v.Type()
-	var args Config
+	args := Config{}
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		key := prefix + "_" + strings.ToUpper(field.Name)
 		value := os.Getenv(key)
 		if value != "" {
-			reflect.ValueOf(&args).Elem().Field(i).SetString(value)
+			v.Field(i).SetString(value)
 		}
 	}
 	return args
 }
 
-// чтение файла конфигурации в структуру Config
+// readConfigFile reads a JSON config file and returns a Config struct.
 func readConfigFile(filePath string) (Config, error) {
 	configFile, err := os.Open(filePath)
 	if err != nil {
@@ -145,4 +147,17 @@ func readConfigFile(filePath string) (Config, error) {
 	}
 
 	return *args, nil
+}
+
+// add adds values from source to args if args has a zero value for the field.
+func (args *Config) add(sources ...Config) {
+	v := reflect.ValueOf(args).Elem()
+	for _, source := range sources {
+		s := reflect.ValueOf(&source).Elem()
+		for i := 0; i < v.NumField(); i++ {
+			if v.Field(i).IsZero() {
+				v.Field(i).Set(s.Field(i))
+			}
+		}
+	}
 }

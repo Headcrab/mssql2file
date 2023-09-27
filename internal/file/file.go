@@ -1,7 +1,7 @@
 package file
 
 import (
-	"mssql2file/internal/errors"
+	apperrors "mssql2file/internal/errors"
 )
 
 const (
@@ -30,7 +30,7 @@ func RegisterFileLocation(locType string, loc func() FileLocation) {
 func NewFileLocation(locType string) (FileLocation, error) {
 	loc, ok := fileLocations[locType]
 	if !ok {
-		return nil, errors.New(errors.UnsupportedLocationType, locType)
+		return nil, apperrors.New(apperrors.UnsupportedLocationType, locType)
 	}
 	return loc(), nil
 }
