@@ -4,6 +4,7 @@ import (
 	"io"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"mssql2file/internal/apperrors"
 )
 
@@ -14,6 +15,9 @@ type Encoder interface {
 =======
 	apperrors "mssql2file/internal/errors"
 >>>>>>> 252be83 (+ apperrors)
+=======
+	"mssql2file/internal/apperrors"
+>>>>>>> 448a933 (app.ver added)
 )
 
 type Encoder interface {

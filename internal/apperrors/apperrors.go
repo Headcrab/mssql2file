@@ -5,16 +5,24 @@ import (
 )
 
 func New(err string, param string) (e error) {
+<<<<<<< HEAD
 	if param != "" {
 		return fmt.Errorf(err, param)
 	}
 	return fmt.Errorf(err)
+=======
+	return fmt.Errorf(err, param)
+>>>>>>> 448a933 (app.ver added)
 }
 
 const (
 	BeginDateParse             = "ошибка при разборе даты: %s"
 	BeginDateNotSet            = "не задана дата начала обработки"
+<<<<<<< HEAD
 	CommandLineHelp            = "помощь по параметрам командной строки %s"
+=======
+	CommandLineHelp            = "помощь по параметрам командной строки"
+>>>>>>> 448a933 (app.ver added)
 	DbConnection               = "ошибка подключения к базе данных: %s"
 	DbQuery                    = "ошибка выполнения запроса к базе данных: %s"
 	DbColumns                  = "ошибка получения списка колонок: %s"

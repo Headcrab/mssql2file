@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"flag"
 	"fmt"
 	"mssql2file/internal/apperrors"
@@ -15,6 +16,10 @@ import (
 =======
 	apperrors "mssql2file/internal/errors"
 >>>>>>> 252be83 (+ apperrors)
+=======
+	"flag"
+	"mssql2file/internal/apperrors"
+>>>>>>> 448a933 (app.ver added)
 	"os"
 	"reflect"
 	"strings"
@@ -228,8 +233,8 @@ func mergeArgs(args *Config) error {
 // mergeArgs merges command line arguments, environment variables, and config file values into a single Config struct.
 func mergeArgs(args *Config) error {
 	sources := []Config{defaultArgs, readEnvVars(envVarPrefix)}
-	if args.Config_file != "" {
-		configFileArgs, err := readConfigFile(args.Config_file)
+	if defaultArgs.Config_file != "" {
+		configFileArgs, err := readConfigFile(defaultArgs.Config_file)
 		if err != nil {
 			return err
 		}

@@ -5,6 +5,7 @@ import (
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"mssql2file/internal/apperrors"
 
 	// "sync" // for v2
@@ -16,6 +17,9 @@ import (
 =======
 	apperrors "mssql2file/internal/errors"
 >>>>>>> 252be83 (+ apperrors)
+=======
+	"mssql2file/internal/apperrors"
+>>>>>>> 448a933 (app.ver added)
 
 	// "sync"
 
@@ -458,6 +462,7 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 		fmt.Print("Загрузка данных из базы данных ")
 	}
 <<<<<<< HEAD
+<<<<<<< HEAD
 	query := strings.ReplaceAll(exporter.config.Query, "{start}", start.Format("2006-01-02 15:04:05"))
 	query = strings.ReplaceAll(query, "{end}", end.Format("2006-01-02 15:04:05"))
 	query = strings.ReplaceAll(query, "{tag}", "%%")
@@ -555,8 +560,13 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 	exporter.config.Query = strings.ReplaceAll(exporter.config.Query, "{start}", start.Format("2006-01-02 15:04:05"))
 	exporter.config.Query = strings.ReplaceAll(exporter.config.Query, "{end}", end.Format("2006-01-02 15:04:05"))
 	exporter.config.Query = strings.ReplaceAll(exporter.config.Query, "{tag}", "%%")
+=======
+	query := strings.ReplaceAll(exporter.config.Query, "{start}", start.Format("2006-01-02 15:04:05"))
+	query = strings.ReplaceAll(query, "{end}", end.Format("2006-01-02 15:04:05"))
+	query = strings.ReplaceAll(query, "{tag}", "%%")
+>>>>>>> 448a933 (app.ver added)
 
-	rows, err := exporter.Db.Query(exporter.config.Query)
+	rows, err := exporter.Db.Query(query)
 	if err != nil {
 		return nil, apperrors.New(apperrors.DbQuery, err.Error())
 	}

@@ -4,6 +4,7 @@ import (
 	"io"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"mssql2file/internal/apperrors"
 =======
 	"mssql2file/internal/errors"
@@ -11,6 +12,9 @@ import (
 =======
 	apperrors "mssql2file/internal/errors"
 >>>>>>> 252be83 (+ apperrors)
+=======
+	"mssql2file/internal/apperrors"
+>>>>>>> 448a933 (app.ver added)
 )
 
 type Compressor interface {

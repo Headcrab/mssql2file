@@ -1,4 +1,9 @@
 PROJECT_NAME = mssql2file
+<<<<<<< HEAD
 PROJECT_VERSION = 0.2.47
 PROJECT_PATH = cmd/main
+=======
+PROJECT_VERSION = 0.2.2
+PROJECT_PATH = cmd/main.go
+>>>>>>> 448a933 (app.ver added)
 PROJECT_NAME_LOW = $(shell echo $(PROJECT_NAME) | tr A-Z a-z)
