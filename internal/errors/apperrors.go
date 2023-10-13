@@ -30,4 +30,5 @@ const (
 	UnsupportedFormat          = "формат не '%s' поддерживается"
 	UnsupportedLocationType    = "тип '%s' не поддерживается"
 	UnsupportedCompressionType = "формат сжатия '%s' не поддерживается"
+	Timeout                    = "ошибка таймаута: %s"
 )
