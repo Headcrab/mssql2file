@@ -17,6 +17,8 @@ import (
 	apperrors "mssql2file/internal/errors"
 >>>>>>> 252be83 (+ apperrors)
 
+	// "sync"
+
 	"encoding/json"
 	"fmt"
 
@@ -329,6 +331,7 @@ func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 func (exporter *Exporter) createNewFile(outputPath string) (*os.File, error) {
 	err := os.MkdirAll(outputPath, 0755)
 	if err != nil {
@@ -360,6 +363,8 @@ func (exporter *Exporter) getExistingFile(config *map[string]interface{}) (*os.F
 	return file, nil
 }
 
+=======
+>>>>>>> e4e4c26 (makefile updated)
 func (exporter *Exporter) createNewFile(outputPath string) (*os.File, error) {
 	err := os.MkdirAll(outputPath, 0755)
 	if err != nil {
@@ -440,10 +445,14 @@ func (exporter *Exporter) processPeriod(start time.Time, end time.Time) error {
 
 // загружает данные из базы данных
 <<<<<<< HEAD
+<<<<<<< HEAD
 func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]string, error) {
 =======
 func (exporter *Exporter) loadData(start time.Time, end time.Time) ([]map[string]interface{}, error) {
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
+=======
+func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]interface{}, error) {
+>>>>>>> e4e4c26 (makefile updated)
 	beg := time.Now()
 	if !exporter.config.Silient {
 		fmt.Print("Загрузка данных из базы данных ")
@@ -553,36 +562,70 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) ([]map[string
 	}
 	defer rows.Close()
 
-	data := make([]map[string]interface{}, 0, 30000000)
+	data := make([]map[string]interface{}, 0, 100000)
 
-	// for rows.Next() {
-	// 	d, err := exporter.writeRow(rows)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	data = append(data, d)
-	// }
-
-	//
-	const batchSize = 1000
-	batch := make([]map[string]interface{}, 0, batchSize)
-
+	// fix: v1
 	for rows.Next() {
 		d, err := exporter.writeRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		batch = append(batch, d)
-		if len(batch) >= batchSize {
-			data = append(data, batch...)
-			batch = batch[:0]
-		}
+		data = append(data, d)
 	}
 
-	if len(batch) > 0 {
-		data = append(data, batch...)
-	}
-	//
+	// fix: v2
+
+	// dataChannel := make(chan map[string]interface{}, 1000) // Буферизованный канал
+	// errChannel := make(chan error, 1)                      // Канал для ошибок
+	// const numWorkers = 10                                  // количество рабочих goroutines
+
+	// var wg sync.WaitGroup
+	// var dataMutex sync.Mutex
+
+	// // Горутина для считывания из базы данных
+	// go func() {
+	// 	for rows.Next() {
+	// 		rowData, err := exporter.writeRow(rows)
+	// 		if err != nil {
+	// 			errChannel <- err
+	// 			return
+	// 		}
+	// 		// fmt.Println("dataChannel <- rowData")
+	// 		dataChannel <- rowData
+	// 	}
+	// 	close(dataChannel)
+	// }()
+
+	// // Рабочие горутины
+	// for i := 0; i < numWorkers; i++ {
+	// 	// fmt.Println("wg.Add(1)")
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		defer wg.Done()
+	// 		for d := range dataChannel {
+	// 			// fmt.Println("data = append(data, d)")
+	// 			// тут обработка данных (если требуется)
+	// 			dataMutex.Lock()
+	// 			data = append(data, d)
+	// 			dataMutex.Unlock()
+	// 		}
+	// 	}()
+	// }
+
+	// // Ждём завершения всех рабочих горутин
+	// wg.Wait()
+
+	// // Проверка наличия ошибок
+	// select {
+	// case err := <-errChannel:
+	// 	if err != nil {
+	// 		// fmt.Println("Error:", err)
+	// 		return nil, err
+	// 	}
+	// default:
+	// 	// Нет ошибок
+	// }
+	// v2
 
 	if len(data) == 0 {
 <<<<<<< HEAD
@@ -601,6 +644,7 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) ([]map[string
 		fmt.Printf("- %d строк за %s\n", len(data), time.Since(beg).Truncate(time.Second))
 	}
 <<<<<<< HEAD
+<<<<<<< HEAD
 	return &data, nil
 }
 
@@ -613,6 +657,13 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[s
 // сохраняет данные в файл
 func (exporter *Exporter) saveData(start time.Time, end time.Time, data []map[string]interface{}) error {
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
+=======
+	return &data, nil
+}
+
+// сохраняет данные в файл
+func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]interface{}) error {
+>>>>>>> e4e4c26 (makefile updated)
 	beg := time.Now()
 	if !exporter.config.Silient {
 		fmt.Print("Сохранение данных в файл")
@@ -685,10 +736,14 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data []map[st
 	}
 	encoder.SetFormatParams(exporter.getFormatParams())
 <<<<<<< HEAD
+<<<<<<< HEAD
 	encoder.Encode(*data)
 =======
 	encoder.Encode(data)
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
+=======
+	encoder.Encode(*data)
+>>>>>>> e4e4c26 (makefile updated)
 
 	err = exporter.saveLastPeriodDate(end)
 	if err != nil {
@@ -718,15 +773,18 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) map[string]interface{} {
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
 =======
 func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, error) {
-	var err error
 	columns, err := rows.Columns()
 	if err != nil {
+<<<<<<< HEAD
 <<<<<<< HEAD
 		return nil, errors.New(errors.DbColumns, err.Error())
 >>>>>>> e66dc11 (*ref)
 =======
 		return nil, apperrors.New(apperrors.DbColumns, err.Error())
 >>>>>>> 252be83 (+ apperrors)
+=======
+		return nil, fmt.Errorf("failed to get columns: %w", err)
+>>>>>>> e4e4c26 (makefile updated)
 	}
 
 	values := make([]interface{}, len(columns))
@@ -735,6 +793,7 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 		valuePtrs[i] = &values[i]
 	}
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 	if err := rows.Scan(valuePtrs...); err != nil {
 		return nil, fmt.Errorf("failed to scan row values: %w", err)
@@ -763,19 +822,21 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 	err = rows.Scan(valuePtrs...)
 	if err != nil {
 		return nil, apperrors.New(apperrors.DbScan, err.Error())
+=======
+	if err := rows.Scan(valuePtrs...); err != nil {
+		return nil, fmt.Errorf("failed to scan row values: %w", err)
+>>>>>>> e4e4c26 (makefile updated)
 	}
 
-	row := make(map[string]interface{})
+	row := make(map[string]interface{}, len(columns))
 	for i, col := range columns {
-		var v interface{}
 		val := values[i]
-		b, ok := val.([]byte)
-		if ok {
-			v = string(b)
-		} else {
-			v = val
+		switch v := val.(type) {
+		case []byte:
+			row[col] = string(v)
+		default:
+			row[col] = v
 		}
-		row[col] = v
 	}
 
 	return row, nil
