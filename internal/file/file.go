@@ -1,7 +1,7 @@
 package file
 
 import (
-	apperrors "mssql2file/internal/errors"
+	"mssql2file/internal/apperrors"
 )
 
 const (

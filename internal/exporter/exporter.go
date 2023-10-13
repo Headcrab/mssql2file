@@ -2,7 +2,7 @@ package exporter
 
 import (
 	"database/sql"
-	apperrors "mssql2file/internal/errors"
+	"mssql2file/internal/apperrors"
 
 	// "sync"
 
@@ -221,11 +221,11 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 	if !exporter.config.Silient {
 		fmt.Print("Загрузка данных из базы данных ")
 	}
-	exporter.config.Query = strings.ReplaceAll(exporter.config.Query, "{start}", start.Format("2006-01-02 15:04:05"))
-	exporter.config.Query = strings.ReplaceAll(exporter.config.Query, "{end}", end.Format("2006-01-02 15:04:05"))
-	exporter.config.Query = strings.ReplaceAll(exporter.config.Query, "{tag}", "%%")
+	query := strings.ReplaceAll(exporter.config.Query, "{start}", start.Format("2006-01-02 15:04:05"))
+	query = strings.ReplaceAll(query, "{end}", end.Format("2006-01-02 15:04:05"))
+	query = strings.ReplaceAll(query, "{tag}", "%%")
 
-	rows, err := exporter.Db.Query(exporter.config.Query)
+	rows, err := exporter.Db.Query(query)
 	if err != nil {
 		return nil, apperrors.New(apperrors.DbQuery, err.Error())
 	}

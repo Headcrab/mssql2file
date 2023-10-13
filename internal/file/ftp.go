@@ -2,7 +2,6 @@ package file
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/jlaffaye/ftp"
@@ -16,7 +15,7 @@ type FTPLocation struct {
 }
 
 func connectAndLoginFTP(addr, user, pass string) (*ftp.ServerConn, error) {
-	conn, err := ftp.Connect(addr)
+	conn, err := ftp.Dial(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +42,7 @@ func (f FTPLocation) Open() (File, error) {
 	}
 	defer res.Close()
 
-	tmpfile, err := ioutil.TempFile("", "ftptmp")
+	tmpfile, err := os.CreateTemp("", "ftptmp")
 	if err != nil {
 		return nil, err
 	}

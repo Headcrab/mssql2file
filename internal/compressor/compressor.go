@@ -2,7 +2,7 @@ package compressor
 
 import (
 	"io"
-	apperrors "mssql2file/internal/errors"
+	"mssql2file/internal/apperrors"
 )
 
 type Compressor interface {
