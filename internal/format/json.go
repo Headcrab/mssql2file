@@ -6,9 +6,13 @@ import (
 )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // RegisterEncoder регистрирует новый кодировщик JSON
 =======
 >>>>>>> e66dc11 (*ref)
+=======
+// RegisterEncoder регистрирует новый кодировщик JSON
+>>>>>>> aa201e5 (go-mssqldb moved)
 func init() {
 	RegisterEncoder("json", newJSONEncoder)
 }

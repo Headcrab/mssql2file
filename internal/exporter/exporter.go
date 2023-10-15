@@ -9,6 +9,7 @@ import (
 	"mssql2file/internal/apperrors"
 
 	// "sync" // for v2
+<<<<<<< HEAD
 =======
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
 =======
@@ -22,6 +23,8 @@ import (
 >>>>>>> 448a933 (app.ver added)
 
 	// "sync"
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)
 
 	"encoding/json"
 	"fmt"
@@ -32,10 +35,14 @@ import (
 	"time"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)
 	"mssql2file/internal/compressor"
 	"mssql2file/internal/config"
 	"mssql2file/internal/format"
 
+<<<<<<< HEAD
 	// mssql
 	_ "github.com/denisenkom/go-mssqldb"
 	// mysql
@@ -56,6 +63,9 @@ import (
 	"mssql2file/internal/config"
 	"mssql2file/internal/format"
 >>>>>>> e66dc11 (*ref)
+=======
+	_ "github.com/denisenkom/go-mssqldb"
+>>>>>>> aa201e5 (go-mssqldb moved)
 )
 
 // структура, представляющая приложение
@@ -852,7 +862,11 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 	return row, nil
 }
 
+<<<<<<< HEAD
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
+=======
+// записывает строку в массив данных
+>>>>>>> aa201e5 (go-mssqldb moved)
 func (exporter *Exporter) getFormatParams() map[string]interface{} {
 	params := make(map[string]interface{})
 	params["delimiter"] = exporter.config.Csv_delimiter

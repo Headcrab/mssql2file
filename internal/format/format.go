@@ -29,9 +29,13 @@ type Encoder interface {
 var formatEncoders = make(map[string]func(io.Writer) Encoder)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // функция для регистрации кодировщиков
 =======
 >>>>>>> e66dc11 (*ref)
+=======
+// функция для регистрации кодировщиков
+>>>>>>> aa201e5 (go-mssqldb moved)
 func RegisterEncoder(name string, enc func(io.Writer) Encoder) {
 	formatEncoders[name] = enc
 }

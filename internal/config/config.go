@@ -18,6 +18,7 @@ import (
 >>>>>>> 252be83 (+ apperrors)
 =======
 	"flag"
+	"fmt"
 	"mssql2file/internal/apperrors"
 >>>>>>> 448a933 (app.ver added)
 	"os"
@@ -27,9 +28,13 @@ import (
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 // константы
 =======
 >>>>>>> 252be83 (+ apperrors)
+=======
+// константы
+>>>>>>> aa201e5 (go-mssqldb moved)
 const (
 	defaultStart            = "last"
 	defaultPeriod           = "1m"
@@ -42,12 +47,16 @@ const (
 	defaultCompression      = "gz"
 	defaultDateFormat       = "060102_150405"
 <<<<<<< HEAD
+<<<<<<< HEAD
 	defaultDecoder          = ""
 	defaultConnectionType   = "mssql"
 	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=1000;"
 =======
 	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;"
 >>>>>>> 252be83 (+ apperrors)
+=======
+	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=10;"
+>>>>>>> aa201e5 (go-mssqldb moved)
 	defaultQuery            = "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"
 	defaultConfigFile       = "mssql2file.cfg"
 	defaultLastPeriodEnd    = ""
@@ -127,8 +136,11 @@ type Config struct {
 	Query             string // запрос к БД MSSQL, по умолчанию: SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;
 	Config_file       string // файл конфигурации, по умолчанию: mssql2file.cfg
 	Last_period_end   string // дата и время окончания последнего обработанного периода, по умолчанию: ''
+
+	printAppNameFunc func()
 }
 
+// стандартные значения
 var defaultArgs = Config{
 	Silient:           false,
 	Start:             defaultStart,
@@ -147,10 +159,19 @@ var defaultArgs = Config{
 	Last_period_end:   defaultLastPeriodEnd,
 }
 
+<<<<<<< HEAD
 // Load gets command line arguments and returns a Config struct.
 func Load() (*Config, error) {
 	args := &Config{}
 >>>>>>> e66dc11 (*ref)
+=======
+func New() *Config {
+	return &Config{}
+}
+
+// Загрузка параметров командной строки и возвращает структуру Config
+func (args *Config) Load() error {
+>>>>>>> aa201e5 (go-mssqldb moved)
 
 	flag.BoolVar(&args.Silient, "silient", false, "флаг, указывающий, что не нужно выводить сообщения в консоль")
 	flag.StringVar(&args.Start, "start", "", "начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last")
@@ -173,6 +194,7 @@ func Load() (*Config, error) {
 	flag.StringVar(&args.Config_file, "config", "", "файл конфигурации, по умолчанию: mssql2file.cfg")
 	flag.StringVar(&args.Last_period_end, "last_period_end", "", "дата и время окончания последнего периода, по умолчанию: не используется")
 <<<<<<< HEAD
+<<<<<<< HEAD
 	help := flag.Bool("h", false, "help")
 	flag.Parse()
 
@@ -185,20 +207,32 @@ func Load() (*Config, error) {
 		return apperrors.New(apperrors.CommandLineHelp, "-h")
 =======
 
+=======
+	help := flag.Bool("h", false, "help")
+>>>>>>> aa201e5 (go-mssqldb moved)
 	flag.Parse()
 
-	if args.Help {
+	if *help {
+		if args.printAppNameFunc != nil {
+			args.printAppNameFunc()
+		}
+		fmt.Println("Usage:")
 		flag.PrintDefaults()
+<<<<<<< HEAD
 <<<<<<< HEAD
 		return nil, errors.New(errors.CommandLineHelp, "")
 >>>>>>> e66dc11 (*ref)
 =======
 		return nil, apperrors.New(apperrors.CommandLineHelp, "")
 >>>>>>> 252be83 (+ apperrors)
+=======
+		return apperrors.New(apperrors.CommandLineHelp, "-h")
+>>>>>>> aa201e5 (go-mssqldb moved)
 	}
 
 	err := mergeArgs(args)
 	if err != nil {
+<<<<<<< HEAD
 <<<<<<< HEAD
 		return err
 	}
@@ -225,12 +259,15 @@ func mergeArgs(args *Config) error {
 	args.add(sources...)
 =======
 		return nil, err
+=======
+		return err
+>>>>>>> aa201e5 (go-mssqldb moved)
 	}
 
-	return args, nil
+	return nil
 }
 
-// mergeArgs merges command line arguments, environment variables, and config file values into a single Config struct.
+// объединение параметров командной строки, переменных окружения, и значения конфигурации
 func mergeArgs(args *Config) error {
 	sources := []Config{defaultArgs, readEnvVars(envVarPrefix)}
 	if defaultArgs.Config_file != "" {
@@ -265,6 +302,9 @@ func mergeArgs(args *Config) error {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)
 // читает переменные окружения с префиксом prefix и возвращает структуру Config
 func readEnvVars(prefix string) Config {
 	v := reflect.ValueOf(&Config{}).Elem()
@@ -305,6 +345,7 @@ func readEnvVars(prefix string) Config {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 // читает файл конфигурации и возвращает структуру Config
 =======
 // чтение файла конфигурации в структуру Config
@@ -312,6 +353,9 @@ func readEnvVars(prefix string) Config {
 =======
 // readConfigFile reads a JSON config file and returns a Config struct.
 >>>>>>> 252be83 (+ apperrors)
+=======
+// читает файл конфигурации и возвращает структуру Config
+>>>>>>> aa201e5 (go-mssqldb moved)
 func readConfigFile(filePath string) (Config, error) {
 	configFile, err := os.Open(filePath)
 	if err != nil {
@@ -333,8 +377,12 @@ func readConfigFile(filePath string) (Config, error) {
 // добавляет значения из source в args, если args имеет нулевое значение для поля
 =======
 
+<<<<<<< HEAD
 // add adds values from source to args if args has a zero value for the field.
 >>>>>>> 252be83 (+ apperrors)
+=======
+// добавляет значения из source в args, если args имеет нулевое значение для поля
+>>>>>>> aa201e5 (go-mssqldb moved)
 func (args *Config) add(sources ...Config) {
 	v := reflect.ValueOf(args).Elem()
 	for _, source := range sources {
@@ -347,11 +395,17 @@ func (args *Config) add(sources ...Config) {
 	}
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)
 
 func (args *Config) SetPrintFunc(printFunc func()) {
 	args.printAppNameFunc = printFunc
 }
+<<<<<<< HEAD
 =======
 >>>>>>> e66dc11 (*ref)
 =======
 >>>>>>> 252be83 (+ apperrors)
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)

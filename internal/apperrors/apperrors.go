@@ -6,23 +6,33 @@ import (
 
 func New(err string, param string) (e error) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)
 	if param != "" {
 		return fmt.Errorf(err, param)
 	}
 	return fmt.Errorf(err)
+<<<<<<< HEAD
 =======
 	return fmt.Errorf(err, param)
 >>>>>>> 448a933 (app.ver added)
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)
 }
 
 const (
 	BeginDateParse             = "ошибка при разборе даты: %s"
 	BeginDateNotSet            = "не задана дата начала обработки"
 <<<<<<< HEAD
+<<<<<<< HEAD
 	CommandLineHelp            = "помощь по параметрам командной строки %s"
 =======
 	CommandLineHelp            = "помощь по параметрам командной строки"
 >>>>>>> 448a933 (app.ver added)
+=======
+	CommandLineHelp            = "помощь по параметрам командной строки %s"
+>>>>>>> aa201e5 (go-mssqldb moved)
 	DbConnection               = "ошибка подключения к базе данных: %s"
 	DbQuery                    = "ошибка выполнения запроса к базе данных: %s"
 	DbColumns                  = "ошибка получения списка колонок: %s"

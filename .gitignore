@@ -42,11 +42,15 @@ copy_new/*
 output/*
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)
 cmd/output/*
 app.syso
 app_16.png
 app_32.png
 cmd/main.syso
+<<<<<<< HEAD
 =======
 >>>>>>> c03b545 (* ref)
 =======
@@ -58,3 +62,5 @@ copy_new/*
 =======
 cmd/output/*
 >>>>>>> 931b7e5 (* config rename)
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)

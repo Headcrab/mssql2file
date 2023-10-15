@@ -48,6 +48,7 @@ func NewFileLocation(locType string) (FileLocation, error) {
 	}
 	return loc(), nil
 }
+<<<<<<< HEAD
 =======
 		return nil, errors.New(errors.UnsupportedLocationType, locType)
 =======
@@ -88,3 +89,5 @@ func NewFileLocation(locType string) (FileLocation, error) {
 // 	}
 // }
 >>>>>>> e66dc11 (*ref)
+=======
+>>>>>>> aa201e5 (go-mssqldb moved)

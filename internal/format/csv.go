@@ -7,9 +7,13 @@ import (
 )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // RegisterEncoder регистрирует новый кодировщик CSV
 =======
 >>>>>>> e66dc11 (*ref)
+=======
+// RegisterEncoder регистрирует новый кодировщик CSV
+>>>>>>> aa201e5 (go-mssqldb moved)
 func init() {
 	RegisterEncoder("csv", newCSVEncoder)
 }
