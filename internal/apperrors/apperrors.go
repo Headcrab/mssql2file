@@ -5,13 +5,16 @@ import (
 )
 
 func New(err string, param string) (e error) {
-	return fmt.Errorf(err, param)
+	if param != "" {
+		return fmt.Errorf(err, param)
+	}
+	return fmt.Errorf(err)
 }
 
 const (
 	BeginDateParse             = "ошибка при разборе даты: %s"
 	BeginDateNotSet            = "не задана дата начала обработки"
-	CommandLineHelp            = "помощь по параметрам командной строки"
+	CommandLineHelp            = "помощь по параметрам командной строки %s"
 	DbConnection               = "ошибка подключения к базе данных: %s"
 	DbQuery                    = "ошибка выполнения запроса к базе данных: %s"
 	DbColumns                  = "ошибка получения списка колонок: %s"

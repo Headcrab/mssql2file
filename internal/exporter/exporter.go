@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"mssql2file/internal/apperrors"
 
-	// "sync"
+	// "sync" // for v2
 
 	"encoding/json"
 	"fmt"
@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/denisenkom/go-mssqldb"
-
 	"mssql2file/internal/compressor"
 	"mssql2file/internal/config"
 	"mssql2file/internal/format"
+
+	_ "github.com/denisenkom/go-mssqldb"
 )
 
 // структура, представляющая приложение
@@ -114,6 +114,11 @@ func (exporter *Exporter) connectToDatabase() error {
 	if err != nil {
 		return apperrors.New(apperrors.DbConnection, err.Error())
 	}
+	err = exporter.Db.Ping()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -384,6 +389,7 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 	return row, nil
 }
 
+// записывает строку в массив данных
 func (exporter *Exporter) getFormatParams() map[string]interface{} {
 	params := make(map[string]interface{})
 	params["delimiter"] = exporter.config.Csv_delimiter

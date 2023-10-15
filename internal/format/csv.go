@@ -6,6 +6,7 @@ import (
 	"io"
 )
 
+// RegisterEncoder регистрирует новый кодировщик CSV
 func init() {
 	RegisterEncoder("csv", newCSVEncoder)
 }

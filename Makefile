@@ -11,12 +11,15 @@ NEW_VERSION := $(MAJOR).$(MINOR).$(NEW_BUILD)
 run:
 	go run $(PROJECT_PATH)
 
-build: update_version
+build: update_version icon
 ifeq ($(OS),Windows_NT)
-	@GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name=$(PROJECT_NAME) -X main.Version=$(NEW_VERSION)" -trimpath -o ./bin/$(PROJECT_NAME).exe $(PROJECT_PATH)
+	GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name=$(PROJECT_NAME) -X main.Version=$(NEW_VERSION)" -trimpath -o ./bin/$(PROJECT_NAME).exe $(PROJECT_PATH).go
 else
-	@GOOS=linux CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name=$(PROJECT_NAME) -X main.Version=$(NEW_VERSION)" -trimpath -o ./bin/$(PROJECT_NAME) $(PROJECT_PATH)
+	@GOOS=linux CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name=$(PROJECT_NAME) -X main.Version=$(NEW_VERSION)" -trimpath -o ./bin/$(PROJECT_NAME) $(PROJECT_PATH).go
 endif
+
+icon:
+	rsrc -ico $(PROJECT_NAME).ico  -arch=amd64 -o $(PROJECT_PATH).syso
 
 upx: build
 ifeq ($(OS),Windows_NT)

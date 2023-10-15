@@ -5,6 +5,7 @@ import (
 	"io"
 )
 
+// RegisterEncoder регистрирует новый кодировщик JSON
 func init() {
 	RegisterEncoder("json", newJSONEncoder)
 }

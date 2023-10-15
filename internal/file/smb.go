@@ -1,3 +1,4 @@
+// todo: проверить корректность работы
 package file
 
 import (

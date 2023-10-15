@@ -34,34 +34,3 @@ func NewFileLocation(locType string) (FileLocation, error) {
 	}
 	return loc(), nil
 }
-
-// func main() {
-// 	locations := []FileLocation{
-// 		HDDLocation("/path/to/local/file"),
-// 		FTPLocation{
-// 			Addr: "ftp.example.com",
-// 			User: "user",
-// 			Pass: "pass",
-// 			Path: "/path/to/remote/file",
-// 		},
-// 		SMBLocation{
-// 			Addr:   "smb.example.com",
-// 			User:   "user",
-// 			Pass:   "pass",
-// 			Path:   "/path/to/remote/file",
-// 			IsIPv6: false,
-// 		},
-// 	}
-
-// 	for _, loc := range locations {
-// 		file, err := loc.Open()
-// 		if err != nil {
-// 			fmt.Println(err)
-// 			continue
-// 		}
-// 		defer file.Close()
-
-// 		fmt.Println("Opened file:", file.Name())
-// 		fmt.Println("File location type:", loc.Type())
-// 	}
-// }

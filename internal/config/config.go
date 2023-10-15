@@ -3,12 +3,14 @@ package config
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"mssql2file/internal/apperrors"
 	"os"
 	"reflect"
 	"strings"
 )
 
+// константы
 const (
 	defaultStart            = "last"
 	defaultPeriod           = "1m"
@@ -20,7 +22,7 @@ const (
 	defaultCsvHeader        = false
 	defaultCompression      = "gz"
 	defaultDateFormat       = "060102_150405"
-	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=3000;"
+	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=10;"
 	defaultQuery            = "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"
 	defaultConfigFile       = "mssql2file.cfg"
 	defaultLastPeriodEnd    = ""
@@ -45,8 +47,11 @@ type Config struct {
 	Query             string // запрос к БД MSSQL, по умолчанию: SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;
 	Config_file       string // файл конфигурации, по умолчанию: mssql2file.cfg
 	Last_period_end   string // дата и время окончания последнего обработанного периода, по умолчанию: ''
+
+	printAppNameFunc func()
 }
 
+// стандартные значения
 var defaultArgs = Config{
 	Silient:           false,
 	Start:             defaultStart,
@@ -65,9 +70,12 @@ var defaultArgs = Config{
 	Last_period_end:   defaultLastPeriodEnd,
 }
 
-// Load gets command line arguments and returns a Config struct.
-func Load() (*Config, error) {
-	args := &Config{}
+func New() *Config {
+	return &Config{}
+}
+
+// Загрузка параметров командной строки и возвращает структуру Config
+func (args *Config) Load() error {
 
 	flag.BoolVar(&args.Silient, "silient", false, "флаг, указывающий, что не нужно выводить сообщения в консоль")
 	flag.StringVar(&args.Start, "start", "", "начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last")
@@ -84,23 +92,27 @@ func Load() (*Config, error) {
 	flag.StringVar(&args.Query, "query", "", "запрос к БД MSSQL")
 	flag.StringVar(&args.Config_file, "config", "", "файл конфигурации, по умолчанию: mssql2file.cfg")
 	flag.StringVar(&args.Last_period_end, "last_period_end", "", "дата и время окончания последнего периода, по умолчанию: не используется")
-
+	help := flag.Bool("h", false, "help")
 	flag.Parse()
 
-	if args.Help {
+	if *help {
+		if args.printAppNameFunc != nil {
+			args.printAppNameFunc()
+		}
+		fmt.Println("Usage:")
 		flag.PrintDefaults()
-		return nil, apperrors.New(apperrors.CommandLineHelp, "")
+		return apperrors.New(apperrors.CommandLineHelp, "-h")
 	}
 
 	err := mergeArgs(args)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return args, nil
+	return nil
 }
 
-// mergeArgs merges command line arguments, environment variables, and config file values into a single Config struct.
+// объединение параметров командной строки, переменных окружения, и значения конфигурации
 func mergeArgs(args *Config) error {
 	sources := []Config{defaultArgs, readEnvVars(envVarPrefix)}
 	if defaultArgs.Config_file != "" {
@@ -115,7 +127,7 @@ func mergeArgs(args *Config) error {
 	return nil
 }
 
-// readEnvVars reads environment variables with the given prefix and returns a Config struct.
+// читает переменные окружения с префиксом prefix и возвращает структуру Config
 func readEnvVars(prefix string) Config {
 	v := reflect.ValueOf(&Config{}).Elem()
 	t := v.Type()
@@ -131,7 +143,7 @@ func readEnvVars(prefix string) Config {
 	return args
 }
 
-// readConfigFile reads a JSON config file and returns a Config struct.
+// читает файл конфигурации и возвращает структуру Config
 func readConfigFile(filePath string) (Config, error) {
 	configFile, err := os.Open(filePath)
 	if err != nil {
@@ -148,7 +160,7 @@ func readConfigFile(filePath string) (Config, error) {
 	return *args, nil
 }
 
-// add adds values from source to args if args has a zero value for the field.
+// добавляет значения из source в args, если args имеет нулевое значение для поля
 func (args *Config) add(sources ...Config) {
 	v := reflect.ValueOf(args).Elem()
 	for _, source := range sources {
@@ -159,4 +171,8 @@ func (args *Config) add(sources ...Config) {
 			}
 		}
 	}
+}
+
+func (args *Config) SetPrintFunc(printFunc func()) {
+	args.printAppNameFunc = printFunc
 }

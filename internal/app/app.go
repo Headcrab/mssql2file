@@ -20,23 +20,26 @@ func New(Name string, Version string) *App {
 }
 
 func (app *App) Run() error {
-
-	fmt.Fprintln(os.Stdout, app.name, " v:", app.version)
-
-	config, err := config.Load()
+	// загрузка конфигурации
+	conf := config.New()
+	conf.SetPrintFunc(func() {
+		fmt.Fprintln(os.Stdout, app.name, " v:", app.version)
+	})
+	err := conf.Load()
 	if err != nil {
-		// log.Fatalf("failed to load config: %s", err)
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	exporter, err := exporter.Create(config)
+	// создание экспортера
+	exporter, err := exporter.Create(conf)
 	if err != nil {
 		// log.Fatalf("failed to create exporter: %s", err)
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
+	// запуск экспортера
 	err = exporter.Run()
 	if err != nil {
 		// log.Fatalf("failed to run exporter: %s", err)
