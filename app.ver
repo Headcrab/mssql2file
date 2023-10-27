@@ -1,6 +1,7 @@
 PROJECT_NAME = mssql2file
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 PROJECT_VERSION = 0.2.47
 PROJECT_PATH = cmd/main
 =======
@@ -9,6 +10,9 @@ PROJECT_PATH = cmd/main.go
 >>>>>>> 448a933 (app.ver added)
 =======
 PROJECT_VERSION = 0.2.32
+=======
+PROJECT_VERSION = 0.2.34
+>>>>>>> 230b9ad (timeout increased back)
 PROJECT_PATH = cmd/main
 >>>>>>> aa201e5 (go-mssqldb moved)
 PROJECT_NAME_LOW = $(shell echo $(PROJECT_NAME) | tr A-Z a-z)
