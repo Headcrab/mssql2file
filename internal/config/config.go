@@ -22,7 +22,7 @@ const (
 	defaultCsvHeader        = false
 	defaultCompression      = "gz"
 	defaultDateFormat       = "060102_150405"
-	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=10;"
+	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=1000;"
 	defaultQuery            = "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"
 	defaultConfigFile       = "mssql2file.cfg"
 	defaultLastPeriodEnd    = ""
