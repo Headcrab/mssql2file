@@ -26,10 +26,14 @@ func newJSONEncoder(w io.Writer) Encoder {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 func (j *jsonEncoder) Encode(v []map[string]string) error {
 =======
 func (j *jsonEncoder) Encode(v []map[string]interface{}) error {
 >>>>>>> e66dc11 (*ref)
+=======
+func (j *jsonEncoder) Encode(v []map[string]string) error {
+>>>>>>> 5ce799b (+connectionType)
 	return j.encoder.Encode(v)
 }
 

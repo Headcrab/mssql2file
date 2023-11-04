@@ -10,6 +10,7 @@ import (
 
 type Encoder interface {
 	Encode(data []map[string]string) error
+<<<<<<< HEAD
 =======
 	"mssql2file/internal/errors"
 =======
@@ -23,6 +24,8 @@ type Encoder interface {
 type Encoder interface {
 	Encode(data []map[string]interface{}) error
 >>>>>>> e66dc11 (*ref)
+=======
+>>>>>>> 5ce799b (+connectionType)
 	SetFormatParams(params map[string]interface{})
 }
 

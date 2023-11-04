@@ -43,10 +43,14 @@ import (
 	"mssql2file/internal/format"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5ce799b (+connectionType)
 	// mssql
 	_ "github.com/denisenkom/go-mssqldb"
 	// mysql
 	_ "github.com/go-sql-driver/mysql"
+<<<<<<< HEAD
 	// clickhouse
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"golang.org/x/text/encoding/charmap"
@@ -66,6 +70,9 @@ import (
 =======
 	_ "github.com/denisenkom/go-mssqldb"
 >>>>>>> aa201e5 (go-mssqldb moved)
+=======
+	"golang.org/x/text/encoding/charmap"
+>>>>>>> 5ce799b (+connectionType)
 )
 
 // структура, представляющая приложение
@@ -238,6 +245,9 @@ func (exporter *Exporter) Run() error {
 func (exporter *Exporter) connectToDatabase() error {
 	var err error
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5ce799b (+connectionType)
 	dbtype := exporter.config.Connection_type
 	// todo: хзхз
 	if dbtype == "" {
@@ -419,12 +429,18 @@ func (exporter *Exporter) processAllPeriods(start time.Time) error {
 		err := exporter.processPeriod(start, end)
 		if err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			if !exporter.config.Silient {
 				fmt.Println(err)
 			}
 =======
 			return err
 >>>>>>> e7725ee (+ config, format, comressor, exported moved)
+=======
+			if !exporter.config.Silient {
+				fmt.Println(err)
+			}
+>>>>>>> 5ce799b (+connectionType)
 		}
 
 		start = end
@@ -460,6 +476,7 @@ func (exporter *Exporter) processPeriod(start time.Time, end time.Time) error {
 // загружает данные из базы данных
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]string, error) {
 =======
 func (exporter *Exporter) loadData(start time.Time, end time.Time) ([]map[string]interface{}, error) {
@@ -467,6 +484,9 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) ([]map[string
 =======
 func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]interface{}, error) {
 >>>>>>> e4e4c26 (makefile updated)
+=======
+func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]string, error) {
+>>>>>>> 5ce799b (+connectionType)
 	beg := time.Now()
 	if !exporter.config.Silient {
 		fmt.Print("Загрузка данных из базы данных ")
@@ -484,6 +504,7 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 	defer rows.Close()
 
 	data := make([]map[string]string, 0, 100000)
+<<<<<<< HEAD
 
 	// fix: v1
 	for rows.Next() {
@@ -583,12 +604,30 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 	defer rows.Close()
 
 	data := make([]map[string]interface{}, 0, 100000)
+=======
+>>>>>>> 5ce799b (+connectionType)
 
 	// fix: v1
 	for rows.Next() {
 		d, err := exporter.writeRow(rows)
 		if err != nil {
 			return nil, err
+		}
+		if exporter.config.Decoder != "" {
+			var enc *charmap.Charmap
+			switch exporter.config.Decoder {
+			case "windows-1251":
+				enc = charmap.Windows1251
+			case "koi8-r":
+				enc = charmap.KOI8R
+			default:
+				enc = charmap.Windows1251
+			}
+			for k, v := range d {
+				if v != "" {
+					d[k], _ = enc.NewDecoder().String(v)
+				}
+			}
 		}
 		data = append(data, d)
 	}
@@ -682,8 +721,12 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data []map[st
 }
 
 // сохраняет данные в файл
+<<<<<<< HEAD
 func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]interface{}) error {
 >>>>>>> e4e4c26 (makefile updated)
+=======
+func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]string) error {
+>>>>>>> 5ce799b (+connectionType)
 	beg := time.Now()
 	if !exporter.config.Silient {
 		fmt.Print("Сохранение данных в файл")
@@ -780,6 +823,9 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[s
 // записывает строку в массив данных
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5ce799b (+connectionType)
 func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]string, error) {
 	columns, err := rows.Columns()
 	if err != nil {
@@ -820,6 +866,7 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 	}
 
 	row := make(map[string]string, len(columns))
+<<<<<<< HEAD
 	for i, col := range columns {
 		if values[i] == nil {
 			row[col] = ""
@@ -849,13 +896,19 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 	}
 
 	row := make(map[string]interface{}, len(columns))
+=======
+>>>>>>> 5ce799b (+connectionType)
 	for i, col := range columns {
+		if values[i] == nil {
+			row[col] = ""
+			continue
+		}
 		val := values[i]
 		switch v := val.(type) {
 		case []byte:
 			row[col] = string(v)
 		default:
-			row[col] = v
+			row[col] = fmt.Sprintf("%v", v)
 		}
 	}
 
