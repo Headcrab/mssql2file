@@ -19,7 +19,7 @@ else
 endif
 
 icon:
-	rsrc -ico $(PROJECT_NAME).ico  -arch=amd64 -o $(PROJECT_PATH).syso
+	rsrc -ico $(PROJECT_NAME).ico  -o $(PROJECT_PATH).syso
 
 upx: build
 ifeq ($(OS),Windows_NT)

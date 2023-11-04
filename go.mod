@@ -14,7 +14,9 @@ require (
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/pierrec/lz4 v2.6.1+incompatible
+	golang.org/x/text v0.13.0
 )

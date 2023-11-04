@@ -22,6 +22,8 @@ const (
 	defaultCsvHeader        = false
 	defaultCompression      = "gz"
 	defaultDateFormat       = "060102_150405"
+	defaultDecoder          = ""
+	defaultConnectionType   = "mssql"
 	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=1000;"
 	defaultQuery            = "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"
 	defaultConfigFile       = "mssql2file.cfg"
@@ -43,6 +45,8 @@ type Config struct {
 	Csv_header        bool   // выводить заголовок в csv-файле, по умолчанию: false
 	Compression       string // метод сжатия (none, gz, lz4), по умолчанию: gz
 	Date_format       string // формат даты для использования в имени файла, по умолчанию: 060102_150405
+	Decoder           string // декодер
+	Connection_type   string // тип сервера
 	Connection_string string // строка подключения к БД MSSQL, по умолчанию HS0
 	Query             string // запрос к БД MSSQL, по умолчанию: SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;
 	Config_file       string // файл конфигурации, по умолчанию: mssql2file.cfg
@@ -64,6 +68,8 @@ var defaultArgs = Config{
 	Csv_header:        defaultCsvHeader,
 	Compression:       defaultCompression,
 	Date_format:       defaultDateFormat,
+	Decoder:           defaultDecoder,
+	Connection_type:   defaultConnectionType,
 	Connection_string: defaultConnectionString,
 	Query:             defaultQuery,
 	Config_file:       defaultConfigFile,
@@ -88,6 +94,8 @@ func (args *Config) Load() error {
 	flag.BoolVar(&args.Csv_header, "csv_header", false, "выводить заголовок в csv-файле, по умолчанию: false")
 	flag.StringVar(&args.Compression, "compression", "", "метод сжатия (none, gz, lz4), по умолчанию: gz")
 	flag.StringVar(&args.Date_format, "date_format", "", "формат даты для использования в имени файла, по умолчанию: 060102_150405")
+	flag.StringVar(&args.Decoder, "decoder", "", "декодер кодировки базы (windows-1251, koi8-r)")
+	flag.StringVar(&args.Connection_type, "connection_type", "", "тип сервера (mssql, mysql), по умолчанию: mssql")
 	flag.StringVar(&args.Connection_string, "connection_string", "", "строка подключения к БД MSSQL, по умолчанию HS0")
 	flag.StringVar(&args.Query, "query", "", "запрос к БД MSSQL")
 	flag.StringVar(&args.Config_file, "config", "", "файл конфигурации, по умолчанию: mssql2file.cfg")
@@ -120,7 +128,9 @@ func mergeArgs(args *Config) error {
 		if err != nil {
 			return err
 		}
-		sources = append(sources, configFileArgs)
+		// insert in begin of sources
+		sources = append([]Config{configFileArgs}, sources...)
+		// sources = append(sources, configFileArgs)
 	}
 	args.add(sources...)
 

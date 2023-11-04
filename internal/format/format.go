@@ -6,7 +6,7 @@ import (
 )
 
 type Encoder interface {
-	Encode(data []map[string]interface{}) error
+	Encode(data []map[string]string) error
 	SetFormatParams(params map[string]interface{})
 }
 

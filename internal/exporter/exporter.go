@@ -18,7 +18,11 @@ import (
 	"mssql2file/internal/config"
 	"mssql2file/internal/format"
 
+	// mssql
 	_ "github.com/denisenkom/go-mssqldb"
+	// mysql
+	_ "github.com/go-sql-driver/mysql"
+	"golang.org/x/text/encoding/charmap"
 )
 
 // структура, представляющая приложение
@@ -110,7 +114,12 @@ func (exporter *Exporter) Run() error {
 // подключается к базе данных
 func (exporter *Exporter) connectToDatabase() error {
 	var err error
-	exporter.Db, err = sql.Open("mssql", exporter.config.Connection_string)
+	dbtype := exporter.config.Connection_type
+	// todo: хзхз
+	if dbtype == "" {
+		dbtype = "mssql"
+	}
+	exporter.Db, err = sql.Open(dbtype, exporter.config.Connection_string)
 	if err != nil {
 		return apperrors.New(apperrors.DbConnection, err.Error())
 	}
@@ -187,7 +196,9 @@ func (exporter *Exporter) processAllPeriods(start time.Time) error {
 
 		err := exporter.processPeriod(start, end)
 		if err != nil {
-			return err
+			if !exporter.config.Silient {
+				fmt.Println(err)
+			}
 		}
 
 		start = end
@@ -221,7 +232,7 @@ func (exporter *Exporter) processPeriod(start time.Time, end time.Time) error {
 }
 
 // загружает данные из базы данных
-func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]interface{}, error) {
+func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]string, error) {
 	beg := time.Now()
 	if !exporter.config.Silient {
 		fmt.Print("Загрузка данных из базы данных ")
@@ -236,13 +247,29 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 	}
 	defer rows.Close()
 
-	data := make([]map[string]interface{}, 0, 100000)
+	data := make([]map[string]string, 0, 100000)
 
 	// fix: v1
 	for rows.Next() {
 		d, err := exporter.writeRow(rows)
 		if err != nil {
 			return nil, err
+		}
+		if exporter.config.Decoder != "" {
+			var enc *charmap.Charmap
+			switch exporter.config.Decoder {
+			case "windows-1251":
+				enc = charmap.Windows1251
+			case "koi8-r":
+				enc = charmap.KOI8R
+			default:
+				enc = charmap.Windows1251
+			}
+			for k, v := range d {
+				if v != "" {
+					d[k], _ = enc.NewDecoder().String(v)
+				}
+			}
 		}
 		data = append(data, d)
 	}
@@ -312,7 +339,7 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 }
 
 // сохраняет данные в файл
-func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]interface{}) error {
+func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]string) error {
 	beg := time.Now()
 	if !exporter.config.Silient {
 		fmt.Print("Сохранение данных в файл")
@@ -359,7 +386,7 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[s
 }
 
 // записывает строку в массив данных
-func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, error) {
+func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]string, error) {
 	columns, err := rows.Columns()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get columns: %w", err)
@@ -375,14 +402,18 @@ func (exporter *Exporter) writeRow(rows *sql.Rows) (map[string]interface{}, erro
 		return nil, fmt.Errorf("failed to scan row values: %w", err)
 	}
 
-	row := make(map[string]interface{}, len(columns))
+	row := make(map[string]string, len(columns))
 	for i, col := range columns {
+		if values[i] == nil {
+			row[col] = ""
+			continue
+		}
 		val := values[i]
 		switch v := val.(type) {
 		case []byte:
 			row[col] = string(v)
 		default:
-			row[col] = v
+			row[col] = fmt.Sprintf("%v", v)
 		}
 	}
 
