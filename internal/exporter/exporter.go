@@ -22,6 +22,8 @@ import (
 	_ "github.com/denisenkom/go-mssqldb"
 	// mysql
 	_ "github.com/go-sql-driver/mysql"
+	// clickhouse
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"golang.org/x/text/encoding/charmap"
 )
 

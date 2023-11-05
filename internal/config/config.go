@@ -123,14 +123,18 @@ func (args *Config) Load() error {
 // объединение параметров командной строки, переменных окружения, и значения конфигурации
 func mergeArgs(args *Config) error {
 	sources := []Config{defaultArgs, readEnvVars(envVarPrefix)}
-	if defaultArgs.Config_file != "" {
+	if args.Config_file != "" {
+		configFileArgs, err := readConfigFile(args.Config_file)
+		if err != nil {
+			return err
+		}
+		sources = append([]Config{configFileArgs}, sources...)
+	} else if defaultArgs.Config_file != "" {
 		configFileArgs, err := readConfigFile(defaultArgs.Config_file)
 		if err != nil {
 			return err
 		}
-		// insert in begin of sources
 		sources = append([]Config{configFileArgs}, sources...)
-		// sources = append(sources, configFileArgs)
 	}
 	args.add(sources...)
 
