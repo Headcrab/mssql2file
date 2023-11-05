@@ -51,6 +51,9 @@ import (
 	// mysql
 	_ "github.com/go-sql-driver/mysql"
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 941170d (+ clickhouse)
 	// clickhouse
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"golang.org/x/text/encoding/charmap"

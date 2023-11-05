@@ -266,6 +266,7 @@ func mergeArgs(args *Config) error {
 		}
 		sources = append([]Config{configFileArgs}, sources...)
 	} else if defaultArgs.Config_file != "" {
+<<<<<<< HEAD
 		configFileArgs, err := readConfigFile(defaultArgs.Config_file)
 		if err != nil {
 			return err
@@ -287,13 +288,13 @@ func mergeArgs(args *Config) error {
 func mergeArgs(args *Config) error {
 	sources := []Config{defaultArgs, readEnvVars(envVarPrefix)}
 	if defaultArgs.Config_file != "" {
+=======
+>>>>>>> 941170d (+ clickhouse)
 		configFileArgs, err := readConfigFile(defaultArgs.Config_file)
 		if err != nil {
 			return err
 		}
-		// insert in begin of sources
 		sources = append([]Config{configFileArgs}, sources...)
-		// sources = append(sources, configFileArgs)
 	}
 <<<<<<< HEAD
 

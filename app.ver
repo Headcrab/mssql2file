@@ -3,10 +3,14 @@ PROJECT_NAME = mssql2file
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 PROJECT_VERSION = 0.2.47
 =======
 PROJECT_VERSION = 0.2.42
 >>>>>>> 5ce799b (+connectionType)
+=======
+PROJECT_VERSION = 0.2.47
+>>>>>>> 941170d (+ clickhouse)
 PROJECT_PATH = cmd/main
 =======
 PROJECT_VERSION = 0.2.2
