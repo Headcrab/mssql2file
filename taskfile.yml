@@ -1,0 +1,61 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  NEW_VERSION : 
+    sh: echo {{.PROJECT_VERSION}} | awk -F. -v OFS=. '{$3++; print $1, $2, $3}'
+  PROJECT_NAME_LOW:
+    sh: echo {{.PROJECT_NAME}} | tr A-Z a-z
+
+tasks:
+  swagger:
+    cmds:
+      - swag init -g internal/app/app.go --exclude vendor --exclude ./
+
+  build:
+    deps: ['update_version', 'swagger'] 
+    cmds:
+      - GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name={{.PROJECT_NAME}} -X main.AppVersion={{.NEW_VERSION}}" -trimpath -o ./bin/{{.PROJECT_NAME}}.exe {{.PROJECT_PATH}}
+
+  update_version:
+    cmds:
+      - sed -i -E "s/PROJECT_VERSION.*/PROJECT_VERSION={{.NEW_VERSION}}/" .env
+
+  upx:
+    deps: ['update_version', 'build']
+    cmds:
+      - 'if [ "{{.OS}}" = "Windows_NT" ]; then upx.exe ./bin/{{.PROJECT_NAME}}.exe; else upx ./bin/{{.PROJECT_NAME}}; fi'
+
+  test:
+    cmds:
+      - 'go test ./...'
+
+  lint:
+    cmds:
+      - 'golangci-lint run'
+
+  docker:
+    cmds:
+      - 'docker build --build-arg PROJECT_NAME={{.PROJECT_NAME}} --build-arg PROJECT_VERSION={{.NEW_VERSION}} --build-arg PORT={{.PORT}} -f deploy/robin/Dockerfile -t {{.PROJECT_NAME_LOW}} .'
+      - 'docker build -f deploy/clickhouse/Dockerfile -t robin-clickhouse .'
+
+  deploy:
+    # deps: ['undeploy']
+    cmds:
+      - 'PROJECT_NAME={{.PROJECT_NAME}} PROJECT_VERSION={{.NEW_VERSION}} PORT={{.PORT}} docker-compose -f ./deploy/docker-compose.dev.yml up -d'
+
+  deploy_prod:
+    deps: ['undeploy', 'docker']
+    cmds:
+      - 'PROJECT_VERSION={{.NEW_VERSION}} docker-compose -f ./deploy/docker-compose.prod.yml up -d'
+      - 'xcopy x:\go\robin2\deploy\docker-compose.prod.yml x:\docker\containers'
+      - 'xcopy x:\go\robin2\deploy\ch_runner x:\docker\containers\ch_runner'
+      - 'docker save -o x:\docker\containers\{{.PROJECT_NAME_LOW}}.tar {{.PROJECT_NAME_LOW}}:latest'
+      - 'docker save -o x:\docker\containers\robin-clickhouse.tar robin-clickhouse'
+
+  undeploy:
+    cmds:
+      - 'docker-compose -f ./deploy/docker-compose.prod.yml down'
+      - 'docker rmi robin-clickhouse'
+      - 'docker rmi {{.PROJECT_NAME_LOW}}:latest'

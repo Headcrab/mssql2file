@@ -34,7 +34,7 @@ mssql2file -start 2023-02-20 00:00:00 -period 24h -format xml
 2. Введите команду `mssql2file` с нужными параметрами.
 3. MSSQL2File экспортирует данные из базы данных в файл.
 ### Дополнительная информация:
-* Исходный код проекта доступен на GitHub: https://github.com/Headcrab/mssql2mongo
-* Документация по проекту: https://github.com/Headcrab/mssql2mongo/wiki
+* Исходный код проекта доступен на GitHub: https://github.com/Headcrab/mssql2file
+* Документация по проекту: https://github.com/Headcrab/mssql2file/wiki
 
 MSSQL2File - это простой и удобный инструмент для экспорта данных из MSSQL в файлы.

@@ -1,4 +1,0 @@
-PROJECT_NAME = mssql2file
-PROJECT_VERSION = 0.2.47
-PROJECT_PATH = cmd/main
-PROJECT_NAME_LOW = $(shell echo $(PROJECT_NAME) | tr A-Z a-z)
