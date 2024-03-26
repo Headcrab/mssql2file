@@ -17,7 +17,6 @@ func (c *noneCompressor) GetWriter() io.Writer {
 }
 
 func (c *noneCompressor) Close() error {
-
 	return nil
 }
 
