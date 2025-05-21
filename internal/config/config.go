@@ -24,7 +24,7 @@ const (
 	defaultDateFormat       = "060102_150405"
 	defaultDecoder          = ""
 	defaultConnectionType   = "mssql"
-	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=1000;"
+	defaultConnectionString = "" // Removed hardcoded default connection string
 	defaultQuery            = "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"
 	defaultConfigFile       = "mssql2file.cfg"
 	defaultLastPeriodEnd    = ""
@@ -34,7 +34,6 @@ const (
 // структура, представляющая параметры командной строки
 type Config struct {
 	Help              bool   // флаг, указывающий, что нужно вывести справку по параметрам командной строки
-	Silient           bool   // флаг, указывающий, что не нужно выводить сообщения в консоль
 	Start             string // начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last
 	Period            string // длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m
 	Output            string // директория для сохранения выходных файлов, по умолчанию: текущая директория
@@ -57,7 +56,6 @@ type Config struct {
 
 // стандартные значения
 var defaultArgs = Config{
-	Silient:           false,
 	Start:             defaultStart,
 	Period:            defaultPeriod,
 	Output:            defaultOutput,
@@ -83,7 +81,6 @@ func New() *Config {
 // Загрузка параметров командной строки и возвращает структуру Config
 func (args *Config) Load() error {
 
-	flag.BoolVar(&args.Silient, "silient", false, "флаг, указывающий, что не нужно выводить сообщения в консоль")
 	flag.StringVar(&args.Start, "start", "", "начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last")
 	flag.StringVar(&args.Period, "period", "", "длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m")
 	flag.StringVar(&args.Output, "output", "", "директория для сохранения выходных файлов, по умолчанию: текущая директория")

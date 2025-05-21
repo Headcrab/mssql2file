@@ -2,17 +2,19 @@ package exporter
 
 import (
 	"database/sql"
+	"fmt" // Ensure fmt is imported
 	"mssql2file/internal/apperrors"
 
-	// "sync" // for v2
+	"sync" // for v2
 
 	"encoding/json"
-	"fmt"
-
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/text/transform"
 
 	"mssql2file/internal/compressor"
 	"mssql2file/internal/config"
@@ -105,10 +107,7 @@ func (exporter *Exporter) Run() error {
 		return err
 	}
 
-	if !exporter.config.Silient {
-		// время выполнения программы в формате 1h2m3s
-		fmt.Println("Время обработки: ", time.Since(progStart).Truncate(time.Second))
-	}
+	slog.Info("Total processing time", "duration", time.Since(progStart).Truncate(time.Second))
 
 	return nil
 }
@@ -116,11 +115,9 @@ func (exporter *Exporter) Run() error {
 // подключается к базе данных
 func (exporter *Exporter) connectToDatabase() error {
 	var err error
+	// exporter.config.Connection_type is guaranteed to be non-empty by config.Load(),
+	// defaulting to "mssql" if not specified by user.
 	dbtype := exporter.config.Connection_type
-	// todo: хзхз
-	if dbtype == "" {
-		dbtype = "mssql"
-	}
 	exporter.Db, err = sql.Open(dbtype, exporter.config.Connection_string)
 	if err != nil {
 		return apperrors.New(apperrors.DbConnection, err.Error())
@@ -144,10 +141,10 @@ func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
 		if file, err := os.Open(exporter.config.Config_file); err == nil {
 			defer file.Close()
 			if err = json.NewDecoder(file).Decode(&config); err != nil {
-				return apperrors.New(apperrors.LastPeriodWrite, err.Error())
+				return fmt.Errorf("failed to decode config file: %w", err)
 			}
 		} else {
-			return err
+			return fmt.Errorf("failed to open config file: %w", err)
 		}
 	}
 
@@ -160,10 +157,10 @@ func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
 		encoder := json.NewEncoder(file)
 		encoder.SetIndent("", "  ")
 		if err = encoder.Encode(config); err != nil {
-			return apperrors.New(apperrors.LastPeriodWrite, err.Error())
+			return fmt.Errorf("failed to encode config to file: %w", err)
 		}
 	} else {
-		return err
+		return fmt.Errorf("failed to create new file: %w", err)
 	}
 
 	return nil
@@ -172,12 +169,12 @@ func (exporter *Exporter) saveLastPeriodDate(end time.Time) error {
 func (exporter *Exporter) createNewFile(outputPath string) (*os.File, error) {
 	err := os.MkdirAll(outputPath, 0755)
 	if err != nil {
-		return nil, apperrors.New(apperrors.LastPeriodFolderCreate, err.Error())
+		return nil, fmt.Errorf("failed to create output path: %w", err)
 	}
 
 	file, err := os.Create(exporter.config.Config_file)
 	if err != nil {
-		return nil, apperrors.New(apperrors.LastPeriodFileCreate, err.Error())
+		return nil, fmt.Errorf("failed to create config file: %w", err)
 	}
 	return file, nil
 }
@@ -198,9 +195,8 @@ func (exporter *Exporter) processAllPeriods(start time.Time) error {
 
 		err := exporter.processPeriod(start, end)
 		if err != nil {
-			if !exporter.config.Silient {
-				fmt.Println(err)
-			}
+			// Return the first error encountered
+			return err
 		}
 
 		start = end
@@ -216,9 +212,7 @@ func (exporter *Exporter) processPeriod(start time.Time, end time.Time) error {
 		start, end = end, start
 	}
 
-	if !exporter.config.Silient {
-		fmt.Printf("Обработка периода с %s по %s\n", start.Format("2006-01-02 15:04:05"), end.Format("2006-01-02 15:04:05"))
-	}
+	slog.Info("Processing period", "start_time", start.Format("2006-01-02 15:04:05"), "end_time", end.Format("2006-01-02 15:04:05"))
 
 	data, err := exporter.loadData(start, end)
 	if err != nil {
@@ -236,129 +230,160 @@ func (exporter *Exporter) processPeriod(start time.Time, end time.Time) error {
 // загружает данные из базы данных
 func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]string, error) {
 	beg := time.Now()
-	if !exporter.config.Silient {
-		fmt.Print("Загрузка данных из базы данных ")
-	}
-	query := strings.ReplaceAll(exporter.config.Query, "{start}", start.Format("2006-01-02 15:04:05"))
-	query = strings.ReplaceAll(query, "{end}", end.Format("2006-01-02 15:04:05"))
-	query = strings.ReplaceAll(query, "{tag}", "%%")
+	slog.Debug("Loading data from database", "start_time", start, "end_time", end)
 
-	rows, err := exporter.Db.Query(query)
+	// Prepare query with placeholders
+	// Assuming the original query in config is like:
+	// "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > {start} AND DateTime <= {end} AND TagName like {tag} AND Value is not null;"
+	// We need to replace {start}, {end}, {tag} with ?
+	// This is a simplified approach; a more robust solution might involve parsing the query
+	// or defining query structures more explicitly.
+	query := exporter.config.Query
+	query = strings.Replace(query, "{start}", "?", 1)
+	query = strings.Replace(query, "{end}", "?", 1)
+	query = strings.Replace(query, "{tag}", "?", 1)
+	// Additional placeholders if any would need similar treatment or a more generic substitution.
+
+	rows, err := exporter.Db.Query(query, start.Format("2006-01-02 15:04:05"), end.Format("2006-01-02 15:04:05"), "%%")
 	if err != nil {
-		return nil, apperrors.New(apperrors.DbQuery, err.Error())
+		return nil, fmt.Errorf("failed to execute parameterized query: %w", err)
 	}
 	defer rows.Close()
 
 	data := make([]map[string]string, 0, 100000)
 
-	// fix: v1
-	for rows.Next() {
-		d, err := exporter.writeRow(rows)
-		if err != nil {
-			return nil, err
+	var decoder transform.Transformer
+	if exporter.config.Decoder != "" {
+		var enc *charmap.Charmap
+		switch exporter.config.Decoder {
+		case "windows-1251":
+			enc = charmap.Windows1251
+		case "koi8-r":
+			enc = charmap.KOI8R
+		default:
+			slog.Warn("Unsupported decoder specified, defaulting to windows-1251", "decoder", exporter.config.Decoder)
+			enc = charmap.Windows1251 // Default to windows-1251 if unsupported type
 		}
-		if exporter.config.Decoder != "" {
-			var enc *charmap.Charmap
-			switch exporter.config.Decoder {
-			case "windows-1251":
-				enc = charmap.Windows1251
-			case "koi8-r":
-				enc = charmap.KOI8R
-			default:
-				enc = charmap.Windows1251
-			}
-			for k, v := range d {
-				if v != "" {
-					d[k], _ = enc.NewDecoder().String(v)
-				}
-			}
+		if enc != nil {
+			decoder = enc.NewDecoder()
 		}
-		data = append(data, d)
 	}
 
-	// fix: v2
-
-	// dataChannel := make(chan map[string]interface{}, 1000) // Буферизованный канал
-	// errChannel := make(chan error, 1)                      // Канал для ошибок
-	// const numWorkers = 10                                  // количество рабочих goroutines
-
-	// var wg sync.WaitGroup
-	// var dataMutex sync.Mutex
-
-	// // Горутина для считывания из базы данных
-	// go func() {
-	// 	for rows.Next() {
-	// 		rowData, err := exporter.writeRow(rows)
-	// 		if err != nil {
-	// 			errChannel <- err
-	// 			return
-	// 		}
-	// 		// fmt.Println("dataChannel <- rowData")
-	// 		dataChannel <- rowData
-	// 	}
-	// 	close(dataChannel)
-	// }()
-
-	// // Рабочие горутины
-	// for i := 0; i < numWorkers; i++ {
-	// 	// fmt.Println("wg.Add(1)")
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		for d := range dataChannel {
-	// 			// fmt.Println("data = append(data, d)")
-	// 			// тут обработка данных (если требуется)
-	// 			dataMutex.Lock()
-	// 			data = append(data, d)
-	// 			dataMutex.Unlock()
-	// 		}
-	// 	}()
-	// }
-
-	// // Ждём завершения всех рабочих горутин
-	// wg.Wait()
-
-	// // Проверка наличия ошибок
-	// select {
-	// case err := <-errChannel:
+	// Commenting out the entire v1 row processing loop.
+	// for rows.Next() {
+	// 	d, err := exporter.writeRow(rows)
 	// 	if err != nil {
-	// 		// fmt.Println("Error:", err)
 	// 		return nil, err
 	// 	}
-	// default:
-	// 	// Нет ошибок
+	// 	if decoder != nil {
+	// 		for k, v := range d {
+	// 			if v != "" {
+	// 				// transformer.String can return an error, which should be handled.
+	// 				decodedValue, _, err := transform.String(decoder, v)
+	// 				if err != nil {
+	// 					return nil, fmt.Errorf("failed to decode value for key %s (original value: '%s'): %w", k, v, err)
+	// 				}
+	// 				d[k] = decodedValue
+	// 			}
+	// 		}
+	// 	}
+	// 	// data = append(data, d) // This line is part of v1, will be commented out
 	// }
-	// v2
+	// End of v1 row processing loop
+
+	// fix: v2 (activated)
+	dataChannel := make(chan map[string]string, 1000) // Буферизованный канал, type changed to map[string]string
+	errChannel := make(chan error, 1)                 // Канал для ошибок
+	const numWorkers = 10                             // количество рабочих goroutines
+
+	var wg sync.WaitGroup
+	var dataMutex sync.Mutex
+
+	// Горутина для считывания из базы данных
+	go func() {
+		defer close(dataChannel) // Close dataChannel when rows.Next() is done
+		for rows.Next() {
+			rowData, err := exporter.writeRow(rows)
+			if err != nil {
+				select {
+				case errChannel <- err:
+				default: // Avoid blocking if errChannel is full or already has an error
+				}
+				return
+			}
+			dataChannel <- rowData
+		}
+	}()
+
+	// Рабочие горутины
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for d := range dataChannel {
+				if decoder != nil {
+					for k, v := range d {
+						if v != "" {
+							decodedValue, _, err := transform.String(decoder, v)
+							if err != nil {
+								select {
+								case errChannel <- fmt.Errorf("failed to decode value for key %s (original value: '%s'): %w", k, v, err):
+								default:
+								}
+								return // Stop this worker on decoding error
+							}
+							d[k] = decodedValue
+						}
+					}
+				}
+				dataMutex.Lock()
+				data = append(data, d)
+				dataMutex.Unlock()
+			}
+		}()
+	}
+
+	// Ждём завершения всех рабочих горутин
+	wg.Wait()
+
+	// Проверка наличия ошибок
+	// Closing errChannel is not strictly necessary here as we only read one error or none.
+	select {
+	case err := <-errChannel:
+		if err != nil {
+			return nil, err // Return the first error encountered
+		}
+	default:
+		// Нет ошибок
+	}
+	// v2 end
 
 	if len(data) == 0 {
+		// Return a specific error if no data is found
 		return nil, apperrors.New(apperrors.DbNoData, "")
 	}
 
-	if !exporter.config.Silient {
-		fmt.Printf("- %d строк за %s\n", len(data), time.Since(beg).Truncate(time.Second))
-	}
+	slog.Info("Data loaded", "rows_count", len(data), "duration", time.Since(beg).Truncate(time.Second))
 	return &data, nil
 }
 
 // сохраняет данные в файл
 func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]string) error {
 	beg := time.Now()
-	if !exporter.config.Silient {
-		fmt.Print("Сохранение данных в файл")
-	}
 	fileName := exporter.generateFileName(start, end)
+	slog.Debug("Saving data to file", "filename", fileName)
 	outputPath := filepath.Dir(fileName)
 	// проверяем путь к выходному файлу и создаем его, если не существует
 	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
 		err := os.MkdirAll(outputPath, 0755)
 		if err != nil {
-			return apperrors.New(apperrors.OutputWrongPath, err.Error())
+			return fmt.Errorf("failed to create output path: %w", err)
 		}
 	}
 
 	file, err := os.Create(fileName)
 	if err != nil {
-		return apperrors.New(apperrors.OutputCreateFile, err.Error())
+		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer file.Close()
 
@@ -380,9 +405,7 @@ func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[s
 		return err
 	}
 
-	if !exporter.config.Silient {
-		fmt.Printf(" - %s\n", time.Since(beg).Truncate(time.Second))
-	}
+	slog.Info("Data saved", "filename", fileName, "duration", time.Since(beg).Truncate(time.Second))
 
 	return nil
 }
