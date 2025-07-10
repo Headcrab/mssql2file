@@ -2,12 +2,12 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"mssql2file/internal/apperrors"
 )
@@ -28,7 +28,7 @@ func TestConfig_Load_Defaults(t *testing.T) {
 	os.Clearenv()
 
 	// Create a temporary empty directory for config to ensure no default config file is loaded
-	tmpDir, err := os.MkdirTemp("", "config-test-defaults")
+	tmpDir, err := os.MkdirTemp(".", "config-test-defaults")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -42,7 +42,6 @@ func TestConfig_Load_Defaults(t *testing.T) {
 	defaultArgs.Config_file = filepath.Join(tmpDir, "non_existent_default.cfg") // Ensure it doesn't load default
 	defer func() { defaultArgs.Config_file = originalConfigFile }()
 
-
 	cfg := New()
 	originalArgs := os.Args
 	os.Args = []string{"cmd"} // No flags
@@ -50,7 +49,7 @@ func TestConfig_Load_Defaults(t *testing.T) {
 
 	err = cfg.Load()
 	if err != nil {
-		if appErr, ok := err.(*apperrors.AppError); ok && appErr.Code == apperrors.CommandLineHelp {
+		if strings.HasPrefix(err.Error(), strings.Replace(apperrors.CommandLineHelp, "%s", "", 1)) {
 			// This can happen if -h is somehow triggered by default flag set, which it shouldn't be.
 			t.Fatalf("Load() returned help error unexpectedly: %v", err)
 		}
@@ -79,7 +78,7 @@ func TestConfig_Load_Defaults(t *testing.T) {
 		Config_file:       filepath.Join(tmpDir, "non_existent_default.cfg"), // This was changed for the test
 		Last_period_end:   defaultLastPeriodEnd,
 	}
-	
+
 	// Handle the fact that cfg.Config_file will be the one from defaultArgs at the time of Load
 	// and defaultArgs.Config_file was temporarily changed.
 	// The loaded cfg.Config_file should reflect what defaultArgs.Config_file was during Load.
@@ -89,7 +88,6 @@ func TestConfig_Load_Defaults(t *testing.T) {
 	// Temporarily set cfg.Config_file to expected for reflect.DeepEqual, then restore if needed for other checks.
 	originalLoadedConfigFile := cfg.Config_file
 	cfg.Config_file = expectedDefaults.Config_file
-
 
 	if !reflect.DeepEqual(*cfg, expectedDefaults) {
 		t.Errorf("Load() with defaults did not match expected values.\nExpected: %+v\nGot:      %+v", expectedDefaults, *cfg)
@@ -123,12 +121,9 @@ func TestConfig_Load_HelpFlag(t *testing.T) {
 		t.Fatalf("Expected error for -h flag, but got nil")
 	}
 
-	if appErr, ok := err.(*apperrors.AppError); ok {
-		if appErr.Code != apperrors.CommandLineHelp {
-			t.Errorf("Expected CommandLineHelp error code, got %d for error: %v", appErr.Code, err)
-		}
-	} else {
-		t.Errorf("Expected *apperrors.AppError type, got %T for error: %v", err, err)
+	expectedErr := fmt.Sprintf(apperrors.CommandLineHelp, "-h")
+	if err.Error() != expectedErr {
+		t.Errorf("Expected %q, got %q", expectedErr, err.Error())
 	}
 }
 
@@ -138,12 +133,11 @@ func TestConfig_Load_FlagsOverrideDefaults(t *testing.T) {
 	os.Clearenv()
 
 	// Ensure no default config file is loaded
-	tmpDir, _ := os.MkdirTemp("", "config-test-flags")
+	tmpDir, _ := os.MkdirTemp(".", "config-test-flags")
 	defer os.RemoveAll(tmpDir)
 	originalDefaultConfFile := defaultArgs.Config_file
 	defaultArgs.Config_file = filepath.Join(tmpDir, "non_existent_default.cfg")
 	defer func() { defaultArgs.Config_file = originalDefaultConfFile }()
-
 
 	cfg := New()
 	originalArgs := os.Args
@@ -173,23 +167,21 @@ func TestConfig_Load_FlagsOverrideDefaults(t *testing.T) {
 }
 
 // TestConfig_Load_EnvVarsOverrideDefaults tests env var overrides.
-// Note: Current precedence is flags > config > env > defaults. This test will be adapted.
+// Note: This tests that env vars work when no higher priority source sets the value.
 func TestConfig_Load_EnvVarsOverrideDefaults(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
-	tmpDir, _ := os.MkdirTemp("", "config-test-env")
+	tmpDir, _ := os.MkdirTemp(".", "config-test-env")
 	defer os.RemoveAll(tmpDir)
 	originalDefaultConfFile := defaultArgs.Config_file
 	defaultArgs.Config_file = filepath.Join(tmpDir, "non_existent_default.cfg")
 	defer func() { defaultArgs.Config_file = originalDefaultConfFile }()
 
-	testStartTime := "2023-02-02 11:00:00"
-	testPeriod := "20m"
+	// Test with Connection_string which has empty default
+	testConnectionString := "test_connection_from_env"
 
-	t.Setenv(envVarPrefix+"_START", testStartTime)
-	t.Setenv(envVarPrefix+"_PERIOD", testPeriod)
-	t.Setenv(envVarPrefix+"_CSV_HEADER", "true")
+	t.Setenv(envVarPrefix+"_CONNECTION_STRING", testConnectionString)
 
 	cfg := New()
 	originalArgs := os.Args
@@ -201,24 +193,25 @@ func TestConfig_Load_EnvVarsOverrideDefaults(t *testing.T) {
 		t.Fatalf("Load() failed: %v", err)
 	}
 
-	if cfg.Start != testStartTime {
-		t.Errorf("Start: expected %s (from env), got %s", testStartTime, cfg.Start)
+	// Connection_string has empty default, so env should override
+	if cfg.Connection_string != testConnectionString {
+		t.Errorf("Connection_string: expected %s (from env), got %s", testConnectionString, cfg.Connection_string)
 	}
-	if cfg.Period != testPeriod {
-		t.Errorf("Period: expected %s (from env), got %s", testPeriod, cfg.Period)
+	// Other fields should keep their defaults since env wasn't set for them
+	if cfg.Start != defaultStart {
+		t.Errorf("Start: expected %s (default), got %s", defaultStart, cfg.Start)
 	}
-	if !cfg.Csv_header {
-		t.Errorf("Csv_header: expected true (from env), got %t", cfg.Csv_header)
+	if cfg.Period != defaultPeriod {
+		t.Errorf("Period: expected %s (default), got %s", defaultPeriod, cfg.Period)
 	}
 }
-
 
 // TestConfig_Load_ConfigFileOverrides tests config file overrides.
 func TestConfig_Load_ConfigFileOverrides(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
-	tmpDir, err := os.MkdirTemp("", "config-test-file")
+	tmpDir, err := os.MkdirTemp(".", "config-test-file")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -240,7 +233,7 @@ func TestConfig_Load_ConfigFileOverrides(t *testing.T) {
 	// Use -config flag to point to our test file
 	os.Args = []string{"cmd", "-config", configFilePath}
 	defer func() { os.Args = originalArgs }()
-	
+
 	// Also, make sure defaultArgs.Config_file doesn't point to an existing one
 	// unless it's the one we're testing with the -config flag.
 	// The -config flag in os.Args should make Load() use configFilePath.
@@ -274,7 +267,7 @@ func TestConfig_Load_ConfigFileMalformed(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
-	tmpDir, err := os.MkdirTemp("", "config-test-malformed")
+	tmpDir, err := os.MkdirTemp(".", "config-test-malformed")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -304,9 +297,9 @@ func TestConfig_Load_ConfigFileNonExistent_Flag(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
-	tmpDir, _ := os.MkdirTemp("", "config-test-nonexistent")
+	tmpDir, _ := os.MkdirTemp(".", "config-test-nonexistent")
 	defer os.RemoveAll(tmpDir)
-	
+
 	nonExistentConfigFilePath := filepath.Join(tmpDir, "does_not_exist.json")
 
 	cfg := New()
@@ -321,33 +314,32 @@ func TestConfig_Load_ConfigFileNonExistent_Flag(t *testing.T) {
 	// Check if it's an os.IsNotExist error or a wrapped one.
 	// The current mergeArgs->readConfigFile returns the error from os.Open directly.
 	if !os.IsNotExist(err) {
-         // It might be wrapped by apperrors.New in readConfigFile, let's check.
-         // However, current readConfigFile returns raw os.Open error.
-         // And mergeArgs also returns it raw.
-         // So direct os.IsNotExist should work.
-         // If it was wrapped:
-         // if appErr, ok := err.(*apperrors.AppError); ok {
-         //  if !strings.Contains(appErr.Message, "no such file or directory") { // or check underlying error
-         //      t.Errorf("Expected 'no such file or directory' error, got: %v", err)
-         //  }
-         // } else {
-         //  t.Errorf("Expected appError for non-existent config, got %T: %v", err, err)
-         // }
-         // For now, let's stick to os.IsNotExist as per current config.go
+		// It might be wrapped by apperrors.New in readConfigFile, let's check.
+		// However, current readConfigFile returns raw os.Open error.
+		// And mergeArgs also returns it raw.
+		// So direct os.IsNotExist should work.
+		// If it was wrapped:
+		// if appErr, ok := err.(*apperrors.AppError); ok {
+		//  if !strings.Contains(appErr.Message, "no such file or directory") { // or check underlying error
+		//      t.Errorf("Expected 'no such file or directory' error, got: %v", err)
+		//  }
+		// } else {
+		//  t.Errorf("Expected appError for non-existent config, got %T: %v", err, err)
+		// }
+		// For now, let's stick to os.IsNotExist as per current config.go
 		t.Errorf("Expected a 'file not found' error, but got a different error: %v", err)
 	}
 }
 
-
-// TestConfig_Load_Precedence tests the defined order: flags > config file > env vars > defaults.
-// Actual implemented order seems to be: flags > config file > env vars > defaults (from mergeArgs logic)
-// The test below will assume: flags > config file > env vars > defaults.
+// TestConfig_Load_Precedence tests the defined order: flags > config > env > defaults.
+// Actual implemented order seems to be: flags > config > env > defaults (from mergeArgs logic)
+// The test below will assume: flags > config > env > defaults.
 func TestConfig_Load_Precedence(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
 	// 1. Setup temp config file
-	tmpDir, err := os.MkdirTemp("", "config-test-precedence")
+	tmpDir, err := os.MkdirTemp(".", "config-test-precedence")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -369,7 +361,6 @@ func TestConfig_Load_Precedence(t *testing.T) {
 	t.Setenv(envVarPrefix+"_PERIOD", "period_from_env")
 	t.Setenv(envVarPrefix+"_OUTPUT", "output_from_env")
 	// Count is not set by env for this test to see config file value take precedence over default.
-
 
 	// 3. Setup Command Line Flags
 	originalArgs := os.Args
@@ -415,6 +406,7 @@ func TestConfig_Load_Precedence(t *testing.T) {
 		t.Errorf("Csv_header: Expected %t (default), got %t", defaultCsvHeader, cfg.Csv_header)
 	}
 }
+
 // Note on actual precedence from config.go's mergeArgs:
 // It iterates through sources: [configFileArgs (if -config or default exists), defaultArgs, envVars]
 // Then it applies command-line flags (args parameter to mergeArgs, which already has flags parsed into it).
@@ -498,8 +490,10 @@ func TestConfig_Load_Precedence_ConfigFile_Default_Env(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
-	tmpDir, err := os.MkdirTemp("", "precedence-cde")
-	if err != nil { t.Fatalf("Failed to create temp dir: %v", err) }
+	tmpDir, err := os.MkdirTemp(".", "precedence-cde")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 
 	// Field: Output_format
@@ -521,7 +515,9 @@ func TestConfig_Load_Precedence_ConfigFile_Default_Env(t *testing.T) {
 	defer func() { os.Args = originalArgs }()
 
 	cfg := New()
-	if err := cfg.Load(); err != nil { t.Fatalf("Load() failed: %v", err) }
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
 
 	// Expected: ConfigFile ("config_format") > Default ("json") > Env ("env_format")
 	if cfg.Output_format != "config_format" {
@@ -539,12 +535,13 @@ func TestConfig_Load_Precedence_ConfigFile_Default_Env(t *testing.T) {
 	os.Args = []string{"cmd", "-config", emptyConfigFilePath}
 
 	cfg2 := New()
-	if err := cfg2.Load(); err != nil { t.Fatalf("Load() failed: %v", err) }
+	if err := cfg2.Load(); err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
 	// Expected: Default ("json") > Env ("env_format")
 	if cfg2.Output_format != defaultOutputFormat {
 		t.Errorf("Output_format (no config entry): Expected '%s' (default), got '%s'", defaultOutputFormat, cfg2.Output_format)
 	}
-
 
 	// Scenario 3: No config file, Env should be overridden by Default
 	resetFlags()
@@ -558,7 +555,9 @@ func TestConfig_Load_Precedence_ConfigFile_Default_Env(t *testing.T) {
 	os.Args = []string{"cmd"} // No -config flag, no specific flags for Output_format
 
 	cfg3 := New()
-	if err := cfg3.Load(); err != nil { t.Fatalf("Load() failed: %v", err) }
+	if err := cfg3.Load(); err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
 	// Expected: Default ("json") > Env ("env_format")
 	if cfg3.Output_format != defaultOutputFormat {
 		t.Errorf("Output_format (no config file, env set): Expected '%s' (default), got '%s'", defaultOutputFormat, cfg3.Output_format)
@@ -570,7 +569,7 @@ func TestConfig_Load_DefaultConfigFile(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
-	tmpDir, err := os.MkdirTemp("", "config-test-default-file")
+	tmpDir, err := os.MkdirTemp(".", "config-test-default-file")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -585,7 +584,7 @@ func TestConfig_Load_DefaultConfigFile(t *testing.T) {
 	originalDefaultPath := defaultArgs.Config_file
 	defaultArgs.Config_file = filepath.Join(tmpDir, "mssql2file.cfg") // Set it to a controllable path
 	defer func() { defaultArgs.Config_file = originalDefaultPath }()
-	
+
 	configFileContent := `{
 		"Start": "start_from_default_config",
 		"Period": "period_from_default_config"
@@ -628,7 +627,7 @@ func TestConfig_Load_ConnectionStringDefault(t *testing.T) {
 	resetFlags()
 	os.Clearenv()
 
-	tmpDir, _ := os.MkdirTemp("", "config-test-cs")
+	tmpDir, _ := os.MkdirTemp(".", "config-test-cs")
 	defer os.RemoveAll(tmpDir)
 	originalDefaultConfFile := defaultArgs.Config_file
 	defaultArgs.Config_file = filepath.Join(tmpDir, "non_existent_default.cfg")
@@ -636,7 +635,7 @@ func TestConfig_Load_ConnectionStringDefault(t *testing.T) {
 
 	cfg := New()
 	originalArgs := os.Args
-	os.Args = []string{"cmd"} 
+	os.Args = []string{"cmd"}
 	defer func() { os.Args = originalArgs }()
 
 	err := cfg.Load()

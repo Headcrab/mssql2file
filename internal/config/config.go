@@ -7,6 +7,7 @@ import (
 	"mssql2file/internal/apperrors"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -127,11 +128,13 @@ func mergeArgs(args *Config) error {
 		}
 		sources = append([]Config{configFileArgs}, sources...)
 	} else if defaultArgs.Config_file != "" {
-		configFileArgs, err := readConfigFile(defaultArgs.Config_file)
-		if err != nil {
-			return err
+		if _, err := os.Stat(defaultArgs.Config_file); err == nil {
+			configFileArgs, err := readConfigFile(defaultArgs.Config_file)
+			if err != nil {
+				return err
+			}
+			sources = append([]Config{configFileArgs}, sources...)
 		}
-		sources = append([]Config{configFileArgs}, sources...)
 	}
 	args.add(sources...)
 
@@ -140,15 +143,26 @@ func mergeArgs(args *Config) error {
 
 // читает переменные окружения с префиксом prefix и возвращает структуру Config
 func readEnvVars(prefix string) Config {
-	v := reflect.ValueOf(&Config{}).Elem()
-	t := v.Type()
 	args := Config{}
+	v := reflect.ValueOf(&args).Elem()
+	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		key := prefix + "_" + strings.ToUpper(field.Name)
 		value := os.Getenv(key)
 		if value != "" {
-			v.Field(i).SetString(value)
+			switch field.Type.Kind() {
+			case reflect.String:
+				v.Field(i).SetString(value)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				if n, err := strconv.ParseInt(value, 10, 64); err == nil {
+					v.Field(i).SetInt(n)
+				}
+			case reflect.Bool:
+				if b, err := strconv.ParseBool(value); err == nil {
+					v.Field(i).SetBool(b)
+				}
+			}
 		}
 	}
 	return args
@@ -171,13 +185,30 @@ func readConfigFile(filePath string) (Config, error) {
 	return *args, nil
 }
 
+// isFieldSet проверяет, было ли поле установлено (не является значением по умолчанию)
+func isFieldSet(fieldValue, defaultValue reflect.Value) bool {
+	// Для bool полей, мы считаем их установленными только если они отличаются от дефолта
+	if fieldValue.Kind() == reflect.Bool {
+		return fieldValue.Bool() != defaultValue.Bool()
+	}
+	// Для остальных типов используем IsZero
+	return !fieldValue.IsZero()
+}
+
 // добавляет значения из source в args, если args имеет нулевое значение для поля
 func (args *Config) add(sources ...Config) {
 	v := reflect.ValueOf(args).Elem()
+	t := v.Type()
+	defaultsV := reflect.ValueOf(&defaultArgs).Elem()
+
 	for _, source := range sources {
 		s := reflect.ValueOf(&source).Elem()
 		for i := 0; i < v.NumField(); i++ {
-			if v.Field(i).IsZero() {
+			field := t.Field(i)
+			if !field.IsExported() {
+				continue
+			}
+			if !isFieldSet(v.Field(i), defaultsV.Field(i)) {
 				v.Field(i).Set(s.Field(i))
 			}
 		}
