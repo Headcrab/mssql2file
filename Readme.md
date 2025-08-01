@@ -1,40 +1,175 @@
-## MSSQL2File: Утилита для экспорта данных из MSSQL в файлы
-MSSQL2File - это утилита командной строки, которая позволяет экспортировать данные из базы данных MSSQL в файлы различных форматов. Она поддерживает экспорт в JSON, CSV, XML, YAML и TOML, а также сжатие полученных файлов с помощью GZip и LZ4.
-### Основные возможности:
-* **Экспорт данных за заданный период:** Вы можете указать начальную дату и время, а также длительность периода, за который нужно экспортировать данные.
-* **Экспорт последних данных:** Утилита может автоматически определить дату и время последнего обработанного периода и экспортировать только новые данные.
-* **Гибкая настройка имени файла:** Вы можете использовать шаблон для имени файла, который включает в себя дату, время, период и формат файла.
-* **Сжатие файлов:** Вы можете выбрать один из поддерживаемых методов сжатия, чтобы уменьшить размер выходных файлов.
-* **Различные форматы вывода:** Вы можете выбрать формат выходного файла, который вам больше всего подходит.
-* **Настройка параметров CSV:** Вы можете указать разделитель полей и включить или отключить вывод заголовка в CSV-файле.
-* **Поддержка различных типов серверов:** Вы можете подключиться к MSSQL, MySQL, ClickHouse.
-* **Настройка запроса:** Вы можете изменить SQL-запрос, используемый для извлечения данных из базы данных.
-* **Чтение конфигурации из файла:** Вы можете сохранить параметры конфигурации в файл, чтобы не вводить их каждый раз при запуске утилиты.
-### Примеры использования:
-* **Экспорт данных за последний час в файл JSON:**
+# MSSQL2File
+
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Headcrab/mssql2file/ci.yml?branch=main&style=for-the-badge)](https://github.com/Headcrab/mssql2file/actions)
+[![Release](https://img.shields.io/github/v/release/Headcrab/mssql2file?style=for-the-badge&color=blueviolet)](https://github.com/Headcrab/mssql2file/releases)
+[![License](https://img.shields.io/github/license/Headcrab/mssql2file?style=for-the-badge)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue?style=for-the-badge)](https://github.com/Headcrab/mssql2file)
+
+**MSSQL2File** — мощная утилита командной строки для экспорта данных из баз данных (MSSQL, MySQL, ClickHouse) в файлы различных форматов с поддержкой сжатия и гибкой настройкой периодов выгрузки.
+
+## ✨ Ключевые возможности
+
+| Возможность | Описание |
+|-------------|----------|
+| 🕒 **Гибкая выборка данных** | Экспорт за произвольный период или автоматическая выгрузка новых данных с последней точки |
+| 📁 **Множество форматов** | Поддержка JSON, CSV, XML, YAML и TOML |
+| 🗜️ **Сжатие на лету** | GZip и LZ4 для минимизации размера выходных файлов |
+| ⚙️ **Гибкая настройка** | Конфигурация через параметры CLI или файл конфигурации |
+| 🔌 **Мульти-БД** | Поддержка MSSQL, MySQL и ClickHouse |
+| 📝 **Настройка CSV** | Настраиваемые разделители и заголовки |
+| 🏷️ **Шаблоны имен файлов** | Динамические имена с датой, временем и периодом |
+
+## 🚀 Быстрый старт
+
+### Установка
+
+```bash
+# Скачайте последнюю версию
+curl -L https://github.com/Headcrab/mssql2file/releases/latest/download/mssql2file.tar.gz -o mssql2file.tar.gz
+
+# Распакуйте
+tar -xzf mssql2file.tar.gz
+
+# Переместите в PATH (опционально)
+sudo mv mssql2file /usr/local/bin/
 ```
+
+### Базовое использование
+
+```bash
+# Экспорт последних данных в JSON
 mssql2file -start last -period 1h -format json
+
+# Выгрузка за период с сжатием
+mssql2file -start "2023-02-20 00:00:00" -period 24h -format xml -compression gz
+
+# Использование конфигурационного файла
+mssql2file -config production.cfg
 ```
 
-* **Экспорт данных за последние 5 минут в сжатый файл CSV с разделителем "," и заголовком:**
-```
-mssql2file -start last -period 5m -format csv -csv_delimiter "," -csv_header true -compression gz
+## 📖 Примеры использования
+
+### 1. Экспорт новых данных за последний час
+```bash
+mssql2file \
+  -start last \
+  -period 1h \
+  -format json \
+  -output "data/last_hour_{{.Period}}.json"
 ```
 
-* **Экспорт данных за период с 2023-02-20 00:00:00 по 2023-02-21 00:00:00 в файл XML:**
+### 2. Сжатая выгрузка CSV с настройками
+```bash
+mssql2file \
+  -start last \
+  -period 5m \
+  -format csv \
+  -csv_delimiter "|" \
+  -csv_header true \
+  -compression lz4 \
+  -output "exports/data_{{.Timestamp}}.csv.lz4"
 ```
-mssql2file -start 2023-02-20 00:00:00 -period 24h -format xml
-```
-### Установка:
-1. Скачайте последнюю версию MSSQL2File с GitHub.
-2. Распакуйте архив и поместите исполняемый файл в удобное для вас место.
-3. (Необязательно) Создайте файл конфигурации `mssql2file.cfg` с нужными параметрами.
-### Использование:
-1. Откройте командную строку и перейдите в директорию, где находится исполняемый файл MSSQL2File.
-2. Введите команду `mssql2file` с нужными параметрами.
-3. MSSQL2File экспортирует данные из базы данных в файл.
-### Дополнительная информация:
-* Исходный код проекта доступен на GitHub: https://github.com/Headcrab/mssql2file
-* Документация по проекту: https://github.com/Headcrab/mssql2file/wiki
 
-MSSQL2File - это простой и удобный инструмент для экспорта данных из MSSQL в файлы.
+### 3. Периодическая выгрузка через cron
+```bash
+# Добавить в crontab (ежечасно)
+0 * * * * /usr/local/bin/mssql2file -start last -period 1h -format json -output "/backups/hourly_{{.Format}}.json.gz"
+```
+
+## ⚙️ Конфигурация
+
+Создайте файл `mssql2file.cfg` для сохранения настроек:
+
+```ini
+[database]
+server = localhost
+user = admin
+password = secret
+database = production
+
+[export]
+format = json
+compression = gz
+csv_delimiter = ","
+csv_header = true
+
+[output]
+path = /exports
+template = "data_{{.Date}}_{{.Period}}.{{.Format}}"
+```
+
+## 📊 Поддерживаемые форматы
+
+| Формат | Сжатие | Особенности |
+|--------|--------|-------------|
+| JSON   | GZip, LZ4 | Человеко-читаемый, для API |
+| CSV    | GZip, LZ4 | Настраиваемые разделители |
+| XML    | GZip, LZ4 | Структурированные данные |
+| YAML   | GZip, LZ4 | Конфигурации и метаданные |
+| TOML   | GZip, LZ4 | Минималистичный синтаксис |
+
+## 🔧 Параметры командной строки
+
+```bash
+mssql2file [OPTIONS]
+
+Основные:
+  -start, -s     Время начала (last|2023-01-01 00:00:00)
+  -period, -p    Период выгрузки (1h, 30m, 7d)
+  -format, -f    Формат файла (json|csv|xml|yaml|toml)
+  -output, -o    Шаблон имени файла
+
+База данных:
+  -server        Сервер БД
+  -user          Пользователь БД
+  -password      Пароль БД
+  -database      Имя БД
+
+CSV настройки:
+  -csv_delimiter Разделитель полей
+  -csv_header    Включить заголовок (true|false)
+
+Сжатие:
+  -compression   Метод сжатия (gz|lz4|none)
+
+Конфигурация:
+  -config, -c    Путь к файлу конфигурации
+```
+
+## 🛠️ Разработка
+
+### Сборка из исходников
+
+```bash
+git clone https://github.com/Headcrab/mssql2file.git
+cd mssql2file
+go build -o mssql2file ./cmd
+```
+
+### Тестирование
+
+```bash
+go test ./...
+```
+
+## 📄 Лицензия
+
+Проект распространяется под лицензией MIT — см. файл [LICENSE](LICENSE) для подробностей.
+
+## 🤝 Вклад в проект
+
+Мы приветствуем вклад! Пожалуйста, ознакомьтесь с:
+- [Руководством по вкладу](CONTRIBUTING.md)
+- [Списком задач](https://github.com/Headcrab/mssql2file/issues)
+
+## 📞 Контакты
+
+- **Документация**: [Wiki](https://github.com/Headcrab/mssql2file/wiki)
+- **Issues**: [GitHub Issues](https://github.com/Headcrab/mssql2file/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Headcrab/mssql2file/discussions)
+
+---
+
+<p align="center">
+  <i>Сделано с ❤️ командой <a href="https://github.com/Headcrab">Headcrab</a></i>
+</p>
