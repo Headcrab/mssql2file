@@ -13,10 +13,14 @@ tasks:
     cmds:
       - swag init -g app.go -d internal/app --exclude vendor
 
-  build:
-    deps: ['swagger'] 
+  winres:
     cmds:
-      - GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name={{.PROJECT_NAME}} -X main.Version={{.PROJECT_VERSION}}" -trimpath -o ./bin/{{.PROJECT_NAME}}.exe {{.PROJECT_PATH}}
+      - go-winres simply --icon mssql2file.ico --arch amd64 --out cmd/rsrc --manifest cli --product-name {{.PROJECT_NAME}} --file-description {{.PROJECT_NAME}} --original-filename {{.PROJECT_NAME}}.exe
+
+  build:
+    deps: ['swagger', 'winres']
+    cmds:
+      - GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name={{.PROJECT_NAME}} -X main.Version={{.PROJECT_VERSION}}" -trimpath -o ./bin/{{.PROJECT_NAME}}.exe ./cmd
 
   update_version:
     cmds:
