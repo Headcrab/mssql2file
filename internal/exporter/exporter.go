@@ -2,10 +2,8 @@ package exporter
 
 import (
 	"database/sql"
-	"fmt" // Ensure fmt is imported
+	"fmt"
 	"mssql2file/internal/apperrors"
-
-	"sync" // for v2
 
 	"encoding/json"
 	"log/slog"
@@ -269,94 +267,29 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 		}
 	}
 
-	// Commenting out the entire v1 row processing loop.
-	// for rows.Next() {
-	// 	d, err := exporter.writeRow(rows)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if decoder != nil {
-	// 		for k, v := range d {
-	// 			if v != "" {
-	// 				// transformer.String can return an error, which should be handled.
-	// 				decodedValue, _, err := transform.String(decoder, v)
-	// 				if err != nil {
-	// 					return nil, fmt.Errorf("failed to decode value for key %s (original value: '%s'): %w", k, v, err)
-	// 				}
-	// 				d[k] = decodedValue
-	// 			}
-	// 		}
-	// 	}
-	// 	// data = append(data, d) // This line is part of v1, will be commented out
-	// }
-	// End of v1 row processing loop
-
-	// fix: v2 (activated)
-	dataChannel := make(chan map[string]string, 1000) // Буферизованный канал, type changed to map[string]string
-	errChannel := make(chan error, 1)                 // Канал для ошибок
-	const numWorkers = 10                             // количество рабочих goroutines
-
-	var wg sync.WaitGroup
-	var dataMutex sync.Mutex
-
-	// Горутина для считывания из базы данных
-	go func() {
-		defer close(dataChannel) // Close dataChannel when rows.Next() is done
-		for rows.Next() {
-			rowData, err := exporter.writeRow(rows)
-			if err != nil {
-				select {
-				case errChannel <- err:
-				default: // Avoid blocking if errChannel is full or already has an error
-				}
-				return
-			}
-			dataChannel <- rowData
-		}
-	}()
-
-	// Рабочие горутины
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for d := range dataChannel {
-				if decoder != nil {
-					for k, v := range d {
-						if v != "" {
-							decodedValue, _, err := transform.String(decoder, v)
-							if err != nil {
-								select {
-								case errChannel <- fmt.Errorf("failed to decode value for key %s (original value: '%s'): %w", k, v, err):
-								default:
-								}
-								return // Stop this worker on decoding error
-							}
-							d[k] = decodedValue
-						}
-					}
-				}
-				dataMutex.Lock()
-				data = append(data, d)
-				dataMutex.Unlock()
-			}
-		}()
-	}
-
-	// Ждём завершения всех рабочих горутин
-	wg.Wait()
-
-	// Проверка наличия ошибок
-	// Closing errChannel is not strictly necessary here as we only read one error or none.
-	select {
-	case err := <-errChannel:
+	for rows.Next() {
+		d, err := exporter.writeRow(rows)
 		if err != nil {
-			return nil, err // Return the first error encountered
+			return nil, err
 		}
-	default:
-		// Нет ошибок
+		if decoder != nil {
+			for k, v := range d {
+				if v == "" {
+					continue
+				}
+				decodedValue, _, err := transform.String(decoder, v)
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode value for key %s (original value: '%s'): %w", k, v, err)
+				}
+				d[k] = decodedValue
+			}
+		}
+		data = append(data, d)
 	}
-	// v2 end
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate rows: %w", err)
+	}
 
 	if len(data) == 0 {
 		// Return a specific error if no data is found
