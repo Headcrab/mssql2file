@@ -11,19 +11,19 @@ vars:
 tasks:
   swagger:
     cmds:
-      - swag init -g internal/app/app.go --exclude vendor --exclude ./
+      - swag init -g app.go -d internal/app --exclude vendor
 
   build:
-    deps: ['update_version', 'swagger'] 
+    deps: ['swagger'] 
     cmds:
-      - GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name={{.PROJECT_NAME}} -X main.AppVersion={{.NEW_VERSION}}" -trimpath -o ./bin/{{.PROJECT_NAME}}.exe {{.PROJECT_PATH}}
+      - GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name={{.PROJECT_NAME}} -X main.Version={{.PROJECT_VERSION}}" -trimpath -o ./bin/{{.PROJECT_NAME}}.exe {{.PROJECT_PATH}}
 
   update_version:
     cmds:
       - sed -i -E "s/PROJECT_VERSION.*/PROJECT_VERSION={{.NEW_VERSION}}/" .env
 
   upx:
-    deps: ['update_version', 'build']
+    deps: ['build']
     cmds:
       - 'if [ "{{.OS}}" = "Windows_NT" ]; then upx.exe ./bin/{{.PROJECT_NAME}}.exe; else upx ./bin/{{.PROJECT_NAME}}; fi'
 

@@ -7,6 +7,7 @@ import (
 	"mssql2file/internal/apperrors"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -24,7 +25,7 @@ const (
 	defaultDateFormat       = "060102_150405"
 	defaultDecoder          = ""
 	defaultConnectionType   = "mssql"
-	defaultConnectionString = "server=139.158.31.1;port=1433;user id=sa;password=!QAZ1qaz12345;database=runtime;TrustServerCertificate=true;encrypt=disable;connection timeout=1000;"
+	defaultConnectionString = "" // Removed hardcoded default connection string
 	defaultQuery            = "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;"
 	defaultConfigFile       = "mssql2file.cfg"
 	defaultLastPeriodEnd    = ""
@@ -34,13 +35,12 @@ const (
 // структура, представляющая параметры командной строки
 type Config struct {
 	Help              bool   // флаг, указывающий, что нужно вывести справку по параметрам командной строки
-	Silient           bool   // флаг, указывающий, что не нужно выводить сообщения в консоль
 	Start             string // начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last
 	Period            string // длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m
 	Output            string // директория для сохранения выходных файлов, по умолчанию: текущая директория
 	Template          string // шаблон имени выходных файлов, по умолчанию: hs_{start}_{end}_{period}.{format}.{compression}
 	Count             int    // количество периодов для обработки, 0 - обработать все периоды до текущего момента, по умолчанию: 0
-	Output_format     string // формат выходных файлов (json, csv, xml, yaml, toml), по умолчанию: json
+	Output_format     string // формат выходных файлов (json, csv, xml), по умолчанию: json
 	Csv_delimiter     string // разделитель полей в csv-файле, по умолчанию: ;
 	Csv_header        bool   // выводить заголовок в csv-файле, по умолчанию: false
 	Compression       string // метод сжатия (none, gz, lz4), по умолчанию: gz
@@ -48,7 +48,7 @@ type Config struct {
 	Decoder           string // декодер
 	Connection_type   string // тип сервера
 	Connection_string string // строка подключения к БД MSSQL, по умолчанию HS0
-	Query             string // запрос к БД MSSQL, по умолчанию: SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;
+	Query             string // запрос к БД, по умолчанию: SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}' AND Value is not null;
 	Config_file       string // файл конфигурации, по умолчанию: mssql2file.cfg
 	Last_period_end   string // дата и время окончания последнего обработанного периода, по умолчанию: ''
 
@@ -57,7 +57,6 @@ type Config struct {
 
 // стандартные значения
 var defaultArgs = Config{
-	Silient:           false,
 	Start:             defaultStart,
 	Period:            defaultPeriod,
 	Output:            defaultOutput,
@@ -83,21 +82,20 @@ func New() *Config {
 // Загрузка параметров командной строки и возвращает структуру Config
 func (args *Config) Load() error {
 
-	flag.BoolVar(&args.Silient, "silient", false, "флаг, указывающий, что не нужно выводить сообщения в консоль")
 	flag.StringVar(&args.Start, "start", "", "начальная дата и время (формат: '2006-01-02 15:04:05' или 'last'), по умолчанию: last")
 	flag.StringVar(&args.Period, "period", "", "длительность периода (формат: 1h, 5m и т.д.) (не более 24 часов), по умолчанию: 1m")
 	flag.StringVar(&args.Output, "output", "", "директория для сохранения выходных файлов, по умолчанию: текущая директория")
 	flag.StringVar(&args.Template, "name", "", "шаблон имени выходных файлов, по умолчанию: hs_{start}_{end}_{period}.{format}.{compression}")
 	flag.IntVar(&args.Count, "count", 0, "количество периодов для обработки, 0 - обработать все периоды до текущего момента, по умолчанию: 0")
-	flag.StringVar(&args.Output_format, "format", "", "формат выходных файлов (json, csv, xml, yaml, toml), по умолчанию: json")
+	flag.StringVar(&args.Output_format, "format", "", "формат выходных файлов (json, csv, xml), по умолчанию: json")
 	flag.StringVar(&args.Csv_delimiter, "csv_delimiter", "", "разделитель полей в csv-файле, по умолчанию: ;")
 	flag.BoolVar(&args.Csv_header, "csv_header", false, "выводить заголовок в csv-файле, по умолчанию: false")
 	flag.StringVar(&args.Compression, "compression", "", "метод сжатия (none, gz, lz4), по умолчанию: gz")
 	flag.StringVar(&args.Date_format, "date_format", "", "формат даты для использования в имени файла, по умолчанию: 060102_150405")
 	flag.StringVar(&args.Decoder, "decoder", "", "декодер кодировки базы (windows-1251, koi8-r)")
-	flag.StringVar(&args.Connection_type, "connection_type", "", "тип сервера (mssql, mysql), по умолчанию: mssql")
-	flag.StringVar(&args.Connection_string, "connection_string", "", "строка подключения к БД MSSQL, по умолчанию HS0")
-	flag.StringVar(&args.Query, "query", "", "запрос к БД MSSQL")
+	flag.StringVar(&args.Connection_type, "connection_type", "", "тип сервера (mssql, mysql, clickhouse), по умолчанию: mssql")
+	flag.StringVar(&args.Connection_string, "connection_string", "", "строка подключения к БД, по умолчанию: пусто")
+	flag.StringVar(&args.Query, "query", "", "запрос к БД")
 	flag.StringVar(&args.Config_file, "config", "", "файл конфигурации, по умолчанию: mssql2file.cfg")
 	flag.StringVar(&args.Last_period_end, "last_period_end", "", "дата и время окончания последнего периода, по умолчанию: не используется")
 	help := flag.Bool("h", false, "help")
@@ -130,11 +128,13 @@ func mergeArgs(args *Config) error {
 		}
 		sources = append([]Config{configFileArgs}, sources...)
 	} else if defaultArgs.Config_file != "" {
-		configFileArgs, err := readConfigFile(defaultArgs.Config_file)
-		if err != nil {
-			return err
+		if _, err := os.Stat(defaultArgs.Config_file); err == nil {
+			configFileArgs, err := readConfigFile(defaultArgs.Config_file)
+			if err != nil {
+				return err
+			}
+			sources = append([]Config{configFileArgs}, sources...)
 		}
-		sources = append([]Config{configFileArgs}, sources...)
 	}
 	args.add(sources...)
 
@@ -143,15 +143,26 @@ func mergeArgs(args *Config) error {
 
 // читает переменные окружения с префиксом prefix и возвращает структуру Config
 func readEnvVars(prefix string) Config {
-	v := reflect.ValueOf(&Config{}).Elem()
-	t := v.Type()
 	args := Config{}
+	v := reflect.ValueOf(&args).Elem()
+	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		key := prefix + "_" + strings.ToUpper(field.Name)
 		value := os.Getenv(key)
 		if value != "" {
-			v.Field(i).SetString(value)
+			switch field.Type.Kind() {
+			case reflect.String:
+				v.Field(i).SetString(value)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				if n, err := strconv.ParseInt(value, 10, 64); err == nil {
+					v.Field(i).SetInt(n)
+				}
+			case reflect.Bool:
+				if b, err := strconv.ParseBool(value); err == nil {
+					v.Field(i).SetBool(b)
+				}
+			}
 		}
 	}
 	return args
@@ -174,13 +185,30 @@ func readConfigFile(filePath string) (Config, error) {
 	return *args, nil
 }
 
+// isFieldSet проверяет, было ли поле установлено (не является значением по умолчанию)
+func isFieldSet(fieldValue, defaultValue reflect.Value) bool {
+	// Для bool полей, мы считаем их установленными только если они отличаются от дефолта
+	if fieldValue.Kind() == reflect.Bool {
+		return fieldValue.Bool() != defaultValue.Bool()
+	}
+	// Для остальных типов используем IsZero
+	return !fieldValue.IsZero()
+}
+
 // добавляет значения из source в args, если args имеет нулевое значение для поля
 func (args *Config) add(sources ...Config) {
 	v := reflect.ValueOf(args).Elem()
+	t := v.Type()
+	defaultsV := reflect.ValueOf(&defaultArgs).Elem()
+
 	for _, source := range sources {
 		s := reflect.ValueOf(&source).Elem()
 		for i := 0; i < v.NumField(); i++ {
-			if v.Field(i).IsZero() {
+			field := t.Field(i)
+			if !field.IsExported() {
+				continue
+			}
+			if !isFieldSet(v.Field(i), defaultsV.Field(i)) {
 				v.Field(i).Set(s.Field(i))
 			}
 		}

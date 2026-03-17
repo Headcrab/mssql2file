@@ -1,6 +1,7 @@
 package apperrors
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -8,7 +9,7 @@ func New(err string, param string) (e error) {
 	if param != "" {
 		return fmt.Errorf(err, param)
 	}
-	return fmt.Errorf(err)
+	return errors.New(err)
 }
 
 const (

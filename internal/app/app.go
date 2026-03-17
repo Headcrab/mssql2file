@@ -27,24 +27,19 @@ func (app *App) Run() error {
 	})
 	err := conf.Load()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		return err
 	}
 
 	// создание экспортера
 	exporter, err := exporter.Create(conf)
 	if err != nil {
-		// log.Fatalf("failed to create exporter: %s", err)
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		return err
 	}
 
 	// запуск экспортера
 	err = exporter.Run()
 	if err != nil {
-		// log.Fatalf("failed to run exporter: %s", err)
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		return err
 	}
 	return nil
 }
