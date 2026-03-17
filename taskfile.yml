@@ -15,12 +15,40 @@ tasks:
 
   winres:
     cmds:
-      - go-winres simply --icon mssql2file.ico --arch amd64 --out cmd/rsrc --manifest cli --product-name {{.PROJECT_NAME}} --file-description {{.PROJECT_NAME}} --original-filename {{.PROJECT_NAME}}.exe
+      - go-winres simply --icon mssql2file.ico --arch amd64 --out cmd/rsrc --manifest cli --product-name MSSQL2File --file-description "MSSQL2File database export utility" --original-filename {{.PROJECT_NAME}}.exe
 
   build:
     deps: ['swagger', 'winres']
     cmds:
       - GOOS=windows CGO_ENABLED=0 go build -ldflags "-s -w -X main.Name={{.PROJECT_NAME}} -X main.Version={{.PROJECT_VERSION}}" -trimpath -o ./bin/{{.PROJECT_NAME}}.exe ./cmd
+      - |
+        cat > winres.version.json <<'EOF'
+        {
+          "RT_VERSION": {
+            "#1": {
+              "0000": {
+                "fixed": {
+                  "file_version": "{{.PROJECT_VERSION}}.0",
+                  "product_version": "{{.PROJECT_VERSION}}.0"
+                },
+                "info": {
+                  "0409": {
+                    "CompanyName": "Headcrab",
+                    "FileDescription": "MSSQL2File database export utility",
+                    "FileVersion": "{{.PROJECT_VERSION}}.0",
+                    "LegalCopyright": "Copyright (c) Headcrab",
+                    "OriginalFilename": "{{.PROJECT_NAME}}.exe",
+                    "ProductName": "MSSQL2File",
+                    "ProductVersion": "{{.PROJECT_VERSION}}.0"
+                  }
+                }
+              }
+            }
+          }
+        }
+        EOF
+      - go-winres patch --in winres.version.json ./bin/{{.PROJECT_NAME}}.exe
+      - rm -f winres.version.json
 
   update_version:
     cmds:

@@ -44,3 +44,4 @@ app_16.png
 app_32.png
 cmd/main.syso
 cmd/*.syso
+winres.version.json
