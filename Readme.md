@@ -12,7 +12,7 @@
 | Возможность | Описание |
 |-------------|----------|
 | 🕒 **Гибкая выборка данных** | Экспорт за произвольный период или автоматическая выгрузка новых данных с последней точки |
-| 📁 **Множество форматов** | Поддержка JSON, CSV, XML, YAML и TOML |
+| 📁 **Множество форматов** | Поддержка JSON, CSV и XML |
 | 🗜️ **Сжатие на лету** | GZip и LZ4 для минимизации размера выходных файлов |
 | ⚙️ **Гибкая настройка** | Конфигурация через параметры CLI или файл конфигурации |
 | 🔌 **Мульти-БД** | Поддержка MSSQL, MySQL и ClickHouse |
@@ -55,7 +55,8 @@ mssql2file \
   -start last \
   -period 1h \
   -format json \
-  -output "data/last_hour_{{.Period}}.json"
+  -output "./data" \
+  -name "last_hour_{start}_{end}.{format}"
 ```
 
 ### 2. Сжатая выгрузка CSV с настройками
@@ -67,35 +68,33 @@ mssql2file \
   -csv_delimiter "|" \
   -csv_header true \
   -compression lz4 \
-  -output "exports/data_{{.Timestamp}}.csv.lz4"
+  -output "./exports" \
+  -name "data_{start}_{end}.{format}.{compression}"
 ```
 
 ### 3. Периодическая выгрузка через cron
 ```bash
 # Добавить в crontab (ежечасно)
-0 * * * * /usr/local/bin/mssql2file -start last -period 1h -format json -output "/backups/hourly_{{.Format}}.json.gz"
+0 * * * * /usr/local/bin/mssql2file -start last -period 1h -format json -output "/backups" -name "hourly_{start}_{end}.{format}.{compression}"
 ```
 
 ## ⚙️ Конфигурация
 
-Создайте файл `mssql2file.cfg` для сохранения настроек:
+Создайте JSON-файл `mssql2file.cfg` для сохранения настроек:
 
-```ini
-[database]
-server = localhost
-user = admin
-password = secret
-database = production
-
-[export]
-format = json
-compression = gz
-csv_delimiter = ","
-csv_header = true
-
-[output]
-path = /exports
-template = "data_{{.Date}}_{{.Period}}.{{.Format}}"
+```json
+{
+  "Connection_type": "mssql",
+  "Connection_string": "server=localhost;port=1433;user id=sa;password=secret;database=production;TrustServerCertificate=true;encrypt=disable;",
+  "Start": "last",
+  "Period": "1h",
+  "Output": "./exports",
+  "Template": "data_{start}_{end}.{format}.{compression}",
+  "Output_format": "json",
+  "Compression": "gz",
+  "Csv_delimiter": ";",
+  "Csv_header": true
+}
 ```
 
 ## 📊 Поддерживаемые форматы
@@ -105,8 +104,6 @@ template = "data_{{.Date}}_{{.Period}}.{{.Format}}"
 | JSON   | GZip, LZ4 | Человеко-читаемый, для API |
 | CSV    | GZip, LZ4 | Настраиваемые разделители |
 | XML    | GZip, LZ4 | Структурированные данные |
-| YAML   | GZip, LZ4 | Конфигурации и метаданные |
-| TOML   | GZip, LZ4 | Минималистичный синтаксис |
 
 ## 🔧 Параметры командной строки
 
@@ -114,26 +111,34 @@ template = "data_{{.Date}}_{{.Period}}.{{.Format}}"
 mssql2file [OPTIONS]
 
 Основные:
-  -start, -s     Время начала (last|2023-01-01 00:00:00)
-  -period, -p    Период выгрузки (1h, 30m, 7d)
-  -format, -f    Формат файла (json|csv|xml|yaml|toml)
-  -output, -o    Шаблон имени файла
+  -start              Время начала (last|2023-01-01 00:00:00)
+  -period             Период выгрузки (1h, 30m)
+  -format             Формат файла (json|csv|xml)
+  -output             Директория выгрузки
+  -name               Шаблон имени файла
 
 База данных:
-  -server        Сервер БД
-  -user          Пользователь БД
-  -password      Пароль БД
-  -database      Имя БД
+  -connection_type    Тип драйвера (mssql|mysql|clickhouse)
+  -connection_string  Строка подключения
 
 CSV настройки:
-  -csv_delimiter Разделитель полей
-  -csv_header    Включить заголовок (true|false)
+  -csv_delimiter      Разделитель полей
+  -csv_header         Включить заголовок (true|false)
 
 Сжатие:
-  -compression   Метод сжатия (gz|lz4|none)
+  -compression        Метод сжатия (gz|lz4|none)
 
 Конфигурация:
-  -config, -c    Путь к файлу конфигурации
+  -config             Путь к JSON-конфигу
+  -last_period_end    Последняя обработанная точка
+  -query              SQL-запрос
+
+Переменные окружения:
+  M2F_CONNECTION_TYPE
+  M2F_CONNECTION_STRING
+  M2F_OUTPUT
+  M2F_OUTPUT_FORMAT
+  M2F_COMPRESSION
 ```
 
 ## 🛠️ Разработка
@@ -143,13 +148,14 @@ CSV настройки:
 ```bash
 git clone https://github.com/Headcrab/mssql2file.git
 cd mssql2file
-go build -o mssql2file ./cmd
+go build -o mssql2file ./cmd/main.go
 ```
 
 ### Тестирование
 
 ```bash
 go test ./...
+task build
 ```
 
 ## 📄 Лицензия
