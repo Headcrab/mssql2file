@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"mssql2file/internal/config"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"golang.org/x/text/encoding/charmap"
 )
 
 // --- Existing tests ---
@@ -235,7 +235,7 @@ func TestExporter_loadData_Success_NoDecoder(t *testing.T) {
 		WithArgs(startTime.Format("2006-01-02 15:04:05"), endTime.Format("2006-01-02 15:04:05"), "%%").
 		WillReturnRows(rows)
 
-	data, err := exporter.loadData(startTime, endTime)
+	data, _, err := exporter.loadData(startTime, endTime)
 	if err != nil {
 		t.Fatalf("loadData failed: %v", err)
 	}
@@ -248,6 +248,100 @@ func TestExporter_loadData_Success_NoDecoder(t *testing.T) {
 	}
 	if !reflect.DeepEqual(data, expectedData) {
 		t.Errorf("loadData data mismatch:\nExpected: %+v\nGot:      %+v", expectedData, data)
+	}
+}
+
+func TestPrepareQuery_QuotedPlaceholders(t *testing.T) {
+	start := time.Date(2026, 3, 18, 11, 14, 0, 0, time.UTC)
+	end := time.Date(2026, 3, 18, 11, 15, 0, 0, time.UTC)
+
+	query, args := prepareQuery(
+		"SELECT TagName FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '{tag}'",
+		start,
+		end,
+	)
+
+	expectedQuery := "SELECT TagName FROM history WHERE DateTime > ? AND DateTime <= ? AND TagName like ?"
+	if query != expectedQuery {
+		t.Fatalf("unexpected query:\nexpected: %s\ngot:      %s", expectedQuery, query)
+	}
+
+	expectedArgs := []interface{}{
+		"2026-03-18 11:14:00",
+		"2026-03-18 11:15:00",
+		"%%",
+	}
+	if !reflect.DeepEqual(args, expectedArgs) {
+		t.Fatalf("unexpected args:\nexpected: %#v\ngot:      %#v", expectedArgs, args)
+	}
+}
+
+func TestPrepareQuery_OptionalTagPlaceholder(t *testing.T) {
+	start := time.Date(2026, 3, 18, 11, 14, 0, 0, time.UTC)
+	end := time.Date(2026, 3, 18, 11, 15, 0, 0, time.UTC)
+
+	query, args := prepareQuery(
+		"SELECT TagName FROM history WHERE DateTime > '{start}' AND DateTime <= '{end}' AND TagName like '%'",
+		start,
+		end,
+	)
+
+	expectedQuery := "SELECT TagName FROM history WHERE DateTime > ? AND DateTime <= ? AND TagName like '%'"
+	if query != expectedQuery {
+		t.Fatalf("unexpected query:\nexpected: %s\ngot:      %s", expectedQuery, query)
+	}
+
+	expectedArgs := []interface{}{
+		"2026-03-18 11:14:00",
+		"2026-03-18 11:15:00",
+	}
+	if !reflect.DeepEqual(args, expectedArgs) {
+		t.Fatalf("unexpected args:\nexpected: %#v\ngot:      %#v", expectedArgs, args)
+	}
+}
+
+func TestFormatPeriodSummary(t *testing.T) {
+	summary := periodSummary{
+		finishedAt:    time.Date(2026, 3, 18, 11, 36, 11, 0, time.FixedZone("UTC+5", 5*60*60)),
+		start:         time.Date(2026, 3, 18, 11, 35, 0, 0, time.FixedZone("UTC+5", 5*60*60)),
+		end:           time.Date(2026, 3, 18, 11, 36, 0, 0, time.FixedZone("UTC+5", 5*60*60)),
+		rows:          18041,
+		loadDuration:  11 * time.Second,
+		saveDuration:  0,
+		totalDuration: 11 * time.Second,
+		fileName:      "result_260318_113500_260318_113600_1m0s.json.gz",
+	}
+
+	got := formatPeriodSummary(summary)
+	want := "[18.03.2026 11:36:11] Период 2026-03-18 11:35:00 -> 2026-03-18 11:36:00 | строк: 18 041 | БД: 11s | файл: 0s | всего: 11s | result_260318_113500_260318_113600_1m0s.json.gz"
+	if got != want {
+		t.Fatalf("unexpected summary:\nexpected: %s\ngot:      %s", want, got)
+	}
+}
+
+func TestResolveDecoder(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          string
+		expected       *charmap.Charmap
+		expectedString string
+	}{
+		{name: "windows alias", input: "Windows1251", expected: charmap.Windows1251, expectedString: "windows-1251"},
+		{name: "windows canonical", input: "windows-1251", expected: charmap.Windows1251, expectedString: "windows-1251"},
+		{name: "koi8 alias", input: "KOI8R", expected: charmap.KOI8R, expectedString: "koi8-r"},
+		{name: "unsupported", input: "utf-8", expected: nil, expectedString: ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, gotString := resolveDecoder(tc.input)
+			if got != tc.expected {
+				t.Fatalf("unexpected decoder: expected %v, got %v", tc.expected, got)
+			}
+			if gotString != tc.expectedString {
+				t.Fatalf("unexpected decoder name: expected %q, got %q", tc.expectedString, gotString)
+			}
+		})
 	}
 }
 
@@ -270,7 +364,7 @@ func TestExporter_loadData_Success_WithDecoder(t *testing.T) {
 		WithArgs(startTime.Format("2006-01-02 15:04:05"), endTime.Format("2006-01-02 15:04:05"), "%%").
 		WillReturnRows(rows)
 
-	data, err := exporter.loadData(startTime, endTime)
+	data, _, err := exporter.loadData(startTime, endTime)
 	if err != nil {
 		t.Fatalf("loadData with decoder failed: %v", err)
 	}
@@ -296,7 +390,7 @@ func TestExporter_loadData_Error_Query(t *testing.T) {
 	dbErr := errors.New("database query error")
 	mock.ExpectQuery(expectedSQL).WillReturnError(dbErr)
 
-	_, err := exporter.loadData(startTime, endTime)
+	_, _, err := exporter.loadData(startTime, endTime)
 	if err == nil {
 		t.Fatalf("loadData expected error from Db.Query, got nil")
 	}
@@ -321,7 +415,7 @@ func TestExporter_loadData_Error_Scan(t *testing.T) {
 		AddRow(nil) // This should cause scan error when trying to scan into string
 	mock.ExpectQuery(expectedSQL).WillReturnRows(rows)
 
-	_, err := exporter.loadData(startTime, endTime)
+	_, _, err := exporter.loadData(startTime, endTime)
 	// Note: With the v2 goroutine implementation, the scan error might be handled differently
 	// The test should expect either a scan error or no error if the implementation handles it gracefully
 	if err != nil && !strings.Contains(err.Error(), "failed to scan row values") {
@@ -342,7 +436,7 @@ func TestExporter_loadData_DbNoData(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"Name"})
 	mock.ExpectQuery(expectedSQL).WillReturnRows(rows)
 
-	_, err := exporter.loadData(startTime, endTime)
+	_, _, err := exporter.loadData(startTime, endTime)
 	if err == nil {
 		t.Fatalf("loadData expected apperrors.DbNoData, got nil")
 	}
@@ -525,7 +619,7 @@ func TestExporter_saveData_Success_CreatesOutputDirectoryAndFile(t *testing.T) {
 		{"col1": "val1", "col2": "val2"},
 	}
 
-	err = exporter.saveData(startTime, endTime, testData)
+	_, _, err = exporter.saveData(startTime, endTime, testData)
 	if err != nil {
 		t.Fatalf("saveData failed: %v", err)
 	}
@@ -596,7 +690,7 @@ func TestExporter_saveData_Error_MkdirAllFails(t *testing.T) {
 	startTime := time.Now()
 	endTime := startTime.Add(time.Minute)
 
-	err = exporter.saveData(startTime, endTime, testData)
+	_, _, err = exporter.saveData(startTime, endTime, testData)
 	if err == nil {
 		t.Fatalf("saveData expected error due to MkdirAll failure, got nil")
 	}
@@ -627,7 +721,7 @@ func TestExporter_saveData_Error_NewCompressorFails(t *testing.T) {
 	startTime := time.Now()
 	endTime := startTime.Add(time.Minute)
 
-	err = exporter.saveData(startTime, endTime, testData)
+	_, _, err = exporter.saveData(startTime, endTime, testData)
 	if err == nil {
 		t.Fatalf("saveData expected error from NewCompressor, got nil")
 	}
@@ -655,7 +749,7 @@ func TestExporter_saveData_Error_NewEncoderFails(t *testing.T) {
 	startTime := time.Now()
 	endTime := startTime.Add(time.Minute)
 
-	err = exporter.saveData(startTime, endTime, testData)
+	_, _, err = exporter.saveData(startTime, endTime, testData)
 	if err == nil {
 		t.Fatalf("saveData expected error from NewEncoder, got nil")
 	}
@@ -689,7 +783,7 @@ func TestExporter_saveData_Error_SaveLastPeriodDateFails(t *testing.T) {
 	startTime := time.Now()
 	endTime := startTime.Add(time.Minute)
 
-	err = exporter.saveData(startTime, endTime, testData)
+	_, _, err = exporter.saveData(startTime, endTime, testData)
 	if err == nil {
 		t.Fatalf("saveData expected error from saveLastPeriodDate, got nil")
 	}
@@ -697,9 +791,4 @@ func TestExporter_saveData_Error_SaveLastPeriodDateFails(t *testing.T) {
 	if !strings.Contains(err.Error(), "failed to create output path") {
 		t.Errorf("Expected error related to saveLastPeriodDate's directory creation, got: %v", err)
 	}
-}
-
-func TestMain(m *testing.M) {
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil))) // Suppress logs during tests
-	os.Exit(m.Run())
 }

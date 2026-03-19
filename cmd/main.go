@@ -1,27 +1,25 @@
 package main
 
 import (
-	"log/slog"
+	"fmt"
 	"mssql2file/internal/app"
 	"mssql2file/internal/apperrors"
 	"os"
 	"strings"
+	"time"
 )
 
 var Version string
 var Name string
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	slog.SetDefault(logger)
-
 	app := app.New(Name, Version)
 	if err := app.Run(); err != nil {
 		helpPrefix := strings.Replace(apperrors.CommandLineHelp, "%s", "", 1)
 		if strings.HasPrefix(err.Error(), helpPrefix) {
 			return
 		}
-		slog.Error("Application run failed", "error", err)
+		fmt.Fprintf(os.Stderr, "[%s] Ошибка | %s\n", time.Now().Format("02.01.2006 15:04:05"), err)
 		os.Exit(1)
 	}
 }

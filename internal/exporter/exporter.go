@@ -6,7 +6,6 @@ import (
 	"mssql2file/internal/apperrors"
 
 	"encoding/json"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +25,22 @@ import (
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"golang.org/x/text/encoding/charmap"
 )
+
+type queryPlaceholder struct {
+	token string
+	value string
+}
+
+type periodSummary struct {
+	finishedAt    time.Time
+	start         time.Time
+	end           time.Time
+	rows          int
+	loadDuration  time.Duration
+	saveDuration  time.Duration
+	totalDuration time.Duration
+	fileName      string
+}
 
 // структура, представляющая приложение
 type Exporter struct {
@@ -98,14 +113,11 @@ func (exporter *Exporter) Run() error {
 	if err != nil {
 		return err
 	}
-	progStart := time.Now()
 
 	err = exporter.processAllPeriods(exporter.start)
 	if err != nil {
 		return err
 	}
-
-	slog.Info("Total processing time", "duration", time.Since(progStart).Truncate(time.Second))
 
 	return nil
 }
@@ -210,41 +222,40 @@ func (exporter *Exporter) processPeriod(start time.Time, end time.Time) error {
 		start, end = end, start
 	}
 
-	slog.Info("Processing period", "start_time", start.Format("2006-01-02 15:04:05"), "end_time", end.Format("2006-01-02 15:04:05"))
+	beg := time.Now()
 
-	data, err := exporter.loadData(start, end)
+	data, loadDuration, err := exporter.loadData(start, end)
 	if err != nil {
 		return err
 	}
 
-	err = exporter.saveData(start, end, data)
+	fileName, saveDuration, err := exporter.saveData(start, end, data)
 	if err != nil {
 		return err
 	}
+
+	fmt.Fprintln(os.Stdout, formatPeriodSummary(periodSummary{
+		finishedAt:    time.Now(),
+		start:         start,
+		end:           end,
+		rows:          len(*data),
+		loadDuration:  loadDuration,
+		saveDuration:  saveDuration,
+		totalDuration: time.Since(beg).Truncate(time.Second),
+		fileName:      filepath.Base(fileName),
+	}))
 
 	return nil
 }
 
 // загружает данные из базы данных
-func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]string, error) {
+func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[string]string, time.Duration, error) {
 	beg := time.Now()
-	slog.Debug("Loading data from database", "start_time", start, "end_time", end)
 
-	// Prepare query with placeholders
-	// Assuming the original query in config is like:
-	// "SELECT TagName, format(DateTime, 'yyyy-MM-dd HH:mm:ss.fff') as DateTime, Value FROM history WHERE DateTime > {start} AND DateTime <= {end} AND TagName like {tag} AND Value is not null;"
-	// We need to replace {start}, {end}, {tag} with ?
-	// This is a simplified approach; a more robust solution might involve parsing the query
-	// or defining query structures more explicitly.
-	query := exporter.config.Query
-	query = strings.Replace(query, "{start}", "?", 1)
-	query = strings.Replace(query, "{end}", "?", 1)
-	query = strings.Replace(query, "{tag}", "?", 1)
-	// Additional placeholders if any would need similar treatment or a more generic substitution.
-
-	rows, err := exporter.Db.Query(query, start.Format("2006-01-02 15:04:05"), end.Format("2006-01-02 15:04:05"), "%%")
+	query, args := prepareQuery(exporter.config.Query, start, end)
+	rows, err := exporter.Db.Query(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute parameterized query: %w", err)
+		return nil, 0, fmt.Errorf("failed to execute parameterized query: %w", err)
 	}
 	defer rows.Close()
 
@@ -252,25 +263,20 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 
 	var decoder transform.Transformer
 	if exporter.config.Decoder != "" {
-		var enc *charmap.Charmap
-		switch exporter.config.Decoder {
-		case "windows-1251":
+		enc, normalized := resolveDecoder(exporter.config.Decoder)
+		if enc == nil {
+			logMessage(os.Stderr, "Предупреждение", fmt.Sprintf("decoder %q не поддерживается, используется windows-1251", exporter.config.Decoder))
 			enc = charmap.Windows1251
-		case "koi8-r":
-			enc = charmap.KOI8R
-		default:
-			slog.Warn("Unsupported decoder specified, defaulting to windows-1251", "decoder", exporter.config.Decoder)
-			enc = charmap.Windows1251 // Default to windows-1251 if unsupported type
+		} else if normalized != exporter.config.Decoder {
+			exporter.config.Decoder = normalized
 		}
-		if enc != nil {
-			decoder = enc.NewDecoder()
-		}
+		decoder = enc.NewDecoder()
 	}
 
 	for rows.Next() {
 		d, err := exporter.writeRow(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if decoder != nil {
 			for k, v := range d {
@@ -279,7 +285,7 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 				}
 				decodedValue, _, err := transform.String(decoder, v)
 				if err != nil {
-					return nil, fmt.Errorf("failed to decode value for key %s (original value: '%s'): %w", k, v, err)
+					return nil, 0, fmt.Errorf("failed to decode value for key %s (original value: '%s'): %w", k, v, err)
 				}
 				d[k] = decodedValue
 			}
@@ -288,59 +294,81 @@ func (exporter *Exporter) loadData(start time.Time, end time.Time) (*[]map[strin
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate rows: %w", err)
+		return nil, 0, fmt.Errorf("failed to iterate rows: %w", err)
 	}
 
 	if len(data) == 0 {
 		// Return a specific error if no data is found
-		return nil, apperrors.New(apperrors.DbNoData, "")
+		return nil, 0, apperrors.New(apperrors.DbNoData, "")
 	}
 
-	slog.Info("Data loaded", "rows_count", len(data), "duration", time.Since(beg).Truncate(time.Second))
-	return &data, nil
+	return &data, time.Since(beg).Truncate(time.Second), nil
+}
+
+func prepareQuery(query string, start time.Time, end time.Time) (string, []interface{}) {
+	placeholders := []queryPlaceholder{
+		{token: "{start}", value: start.Format("2006-01-02 15:04:05")},
+		{token: "{end}", value: end.Format("2006-01-02 15:04:05")},
+		{token: "{tag}", value: "%%"},
+	}
+
+	args := make([]interface{}, 0, len(placeholders))
+	for _, placeholder := range placeholders {
+		quotedToken := "'" + placeholder.token + "'"
+		if strings.Contains(query, quotedToken) {
+			query = strings.Replace(query, quotedToken, "?", 1)
+			args = append(args, placeholder.value)
+			continue
+		}
+		if strings.Contains(query, placeholder.token) {
+			query = strings.Replace(query, placeholder.token, "?", 1)
+			args = append(args, placeholder.value)
+		}
+	}
+
+	return query, args
 }
 
 // сохраняет данные в файл
-func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]string) error {
+func (exporter *Exporter) saveData(start time.Time, end time.Time, data *[]map[string]string) (string, time.Duration, error) {
 	beg := time.Now()
 	fileName := exporter.generateFileName(start, end)
-	slog.Debug("Saving data to file", "filename", fileName)
 	outputPath := filepath.Dir(fileName)
 	// проверяем путь к выходному файлу и создаем его, если не существует
 	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
 		err := os.MkdirAll(outputPath, 0755)
 		if err != nil {
-			return fmt.Errorf("failed to create output path: %w", err)
+			return "", 0, fmt.Errorf("failed to create output path: %w", err)
 		}
 	}
 
 	file, err := os.Create(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
+		return "", 0, fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer file.Close()
 
 	compressor, err := compressor.NewCompressor(exporter.config.Compression, file)
 	if err != nil {
-		return err
+		return "", 0, err
 	}
 	defer compressor.Close()
 
 	encoder, err := format.NewEncoder(exporter.config.Output_format, compressor)
 	if err != nil {
-		return err
+		return "", 0, err
 	}
 	encoder.SetFormatParams(exporter.getFormatParams())
-	encoder.Encode(*data)
+	if err = encoder.Encode(*data); err != nil {
+		return "", 0, err
+	}
 
 	err = exporter.saveLastPeriodDate(end)
 	if err != nil {
-		return err
+		return "", 0, err
 	}
 
-	slog.Info("Data saved", "filename", fileName, "duration", time.Since(beg).Truncate(time.Second))
-
-	return nil
+	return fileName, time.Since(beg).Truncate(time.Second), nil
 }
 
 // записывает строку в массив данных
@@ -384,4 +412,53 @@ func (exporter *Exporter) getFormatParams() map[string]interface{} {
 	params["delimiter"] = exporter.config.Csv_delimiter
 	params["header"] = exporter.config.Csv_header
 	return params
+}
+
+func formatPeriodSummary(summary periodSummary) string {
+	return fmt.Sprintf(
+		"[%s] Период %s -> %s | строк: %s | БД: %s | файл: %s | всего: %s | %s",
+		summary.finishedAt.Format("02.01.2006 15:04:05"),
+		summary.start.Format("2006-01-02 15:04:05"),
+		summary.end.Format("2006-01-02 15:04:05"),
+		formatCount(summary.rows),
+		summary.loadDuration,
+		summary.saveDuration,
+		summary.totalDuration,
+		summary.fileName,
+	)
+}
+
+func formatCount(n int) string {
+	s := fmt.Sprintf("%d", n)
+	if len(s) <= 3 {
+		return s
+	}
+
+	firstGroupLen := len(s) % 3
+	if firstGroupLen == 0 {
+		firstGroupLen = 3
+	}
+
+	var parts []string
+	parts = append(parts, s[:firstGroupLen])
+	for i := firstGroupLen; i < len(s); i += 3 {
+		parts = append(parts, s[i:i+3])
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func resolveDecoder(name string) (*charmap.Charmap, string) {
+	switch strings.ToLower(strings.ReplaceAll(name, "-", "")) {
+	case "windows1251", "cp1251", "win1251":
+		return charmap.Windows1251, "windows-1251"
+	case "koi8r":
+		return charmap.KOI8R, "koi8-r"
+	default:
+		return nil, ""
+	}
+}
+
+func logMessage(output *os.File, title string, message string) {
+	fmt.Fprintf(output, "[%s] %s | %s\n", time.Now().Format("02.01.2006 15:04:05"), title, message)
 }
